@@ -26,6 +26,18 @@ from diplomacy import Game
 POWERS = ("AUSTRIA", "ENGLAND", "FRANCE", "GERMANY", "ITALY", "RUSSIA", "TURKEY")
 
 
+# `diplomacy.Game.get_state()` includes a microsecond `timestamp` field
+# that breaks deterministic hashing. Strip non-game-state fields before
+# canonicalising. `zobrist_hash` is engine-internal and already covered
+# by the data we keep, but we keep it for cross-checking.
+_VOLATILE_STATE_KEYS = frozenset({"timestamp"})
+
+
+def canonical_state(state: dict) -> dict:
+    """Return a state dict suitable for hashing/signing."""
+    return {k: v for k, v in state.items() if k not in _VOLATILE_STATE_KEYS}
+
+
 def canonical_json(obj: Any) -> bytes:
     """Deterministic JSON encoding for hashing/signing."""
     return json.dumps(obj, sort_keys=True, separators=(",", ":"), default=str).encode()
@@ -34,7 +46,7 @@ def canonical_json(obj: Any) -> bytes:
 def state_hash(state: dict) -> str:
     """SHA-256 of the canonical state encoding. Two enclaves running the
     same binary on the same inputs must produce byte-identical output."""
-    return hashlib.sha256(canonical_json(state)).hexdigest()
+    return hashlib.sha256(canonical_json(canonical_state(state))).hexdigest()
 
 
 @dataclass
