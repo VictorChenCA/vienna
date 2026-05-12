@@ -170,6 +170,66 @@
   /* hide the diplomacy SVG's built-in phase label — duplicates ours */
   #map-svg-host svg > text:last-of-type { display: none; }
 
+  /* ─── INTERACTIVE MAP: highlights, arrows, ghost ──────────── */
+  #map-svg-host svg [id^="_"] {
+    transition: opacity 0.15s, filter 0.15s;
+  }
+  #map-svg-host svg.focusing [id^="_"]:not(.hovered):not(.selected):not(.target) {
+    opacity: 0.35;
+  }
+  #map-svg-host svg [id^="_"].hovered {
+    filter: brightness(1.2) drop-shadow(0 0 6px rgba(255,206,77,0.6));
+  }
+  #map-svg-host svg [id^="_"].selected {
+    filter: brightness(1.3) drop-shadow(0 0 10px var(--accent));
+  }
+  #map-svg-host svg [id^="_"].target {
+    filter: brightness(1.15) drop-shadow(0 0 6px rgba(110,192,255,0.7));
+  }
+
+  /* Order arrows we inject into the SVG */
+  .order-arrow {
+    fill: none;
+    stroke-width: 6;
+    opacity: 0.65;
+    cursor: pointer;
+    transition: opacity 0.12s, stroke-width 0.12s;
+    pointer-events: stroke;
+  }
+  .order-arrow:hover { opacity: 1; stroke-width: 9; }
+  .order-arrow.staged {
+    opacity: 1; stroke-width: 9;
+    filter: drop-shadow(0 0 8px currentColor);
+  }
+  .order-arrow.move        { stroke: #ffce4d; color: #ffce4d; }
+  .order-arrow.support     { stroke: #6ec0ff; color: #6ec0ff; stroke-dasharray: 14 8; }
+  .order-arrow.convoy      { stroke: #5ae18b; color: #5ae18b; stroke-dasharray: 2 10; stroke-linecap: round; stroke-width: 7; }
+  .hold-ring {
+    fill: none; stroke: #ffce4d; stroke-width: 5;
+    opacity: 0.7; cursor: pointer;
+    transition: opacity 0.12s, stroke-width 0.12s;
+  }
+  .hold-ring:hover { opacity: 1; stroke-width: 7; }
+  .hold-ring.staged { opacity: 1; stroke-width: 7; filter: drop-shadow(0 0 8px #ffce4d); }
+
+  /* Map hint overlay */
+  .map-hint {
+    position: absolute; bottom: 14px; left: 14px;
+    background: rgba(13, 13, 18, 0.92);
+    backdrop-filter: blur(8px);
+    border: 1px solid var(--border);
+    border-radius: 9px; padding: 8px 14px;
+    font-family: var(--mono); font-size: 11.5px;
+    color: var(--fg-2); z-index: 4;
+    max-width: 360px; line-height: 1.55;
+  }
+  .map-hint b { color: var(--accent); }
+  .map-hint kbd {
+    background: var(--panel-2); border: 1px solid var(--border-strong);
+    border-radius: 4px; padding: 1px 6px;
+    font-family: var(--mono); font-size: 11px;
+  }
+
   /* ─── GAME VIEW ──────────────────────────────────────────── */
   #game {
     flex-direction: row;
@@ -631,6 +691,9 @@
         </div>
       </div>
       <div id="map-svg-host"></div>
+      <div class="map-hint" id="map-hint" style="display:none">
+        Click a <b>unit</b> to see legal moves · <kbd>H</kbd> hold · <kbd>Esc</kbd> deselect
+      </div>
       <div class="map-controls">
         <button onclick="mapZoom(1.2)" title="Zoom in">+</button>
         <button onclick="mapZoom(0.83)" title="Zoom out">−</button>
@@ -1055,16 +1118,291 @@ async function refreshMap() {
       if (svg) {
         svg.removeAttribute("width");
         svg.removeAttribute("height");
+        installMapOverlay(svg);
         if (!state.mapInitialized) {
           mapFit();
           state.mapInitialized = true;
         } else {
           applyMapTransform();
         }
+        // Redraw any in-progress orders from before the map refresh
+        if (orderState.selected) drawArrowsFor(orderState.selected);
+        restageVisuals();
+        $("map-hint").style.display = "block";
       }
     }
   } catch (e) { /* ignore */ }
 }
+
+// =============================================================
+// INTERACTIVE MAP: click units, see legal moves as arrows,
+// click arrows to stage. Pass 1: moves + holds.
+// =============================================================
+const orderState = {
+  selected: null,        // province id (uppercase) of currently-selected own unit
+  staged: {},            // { fromProv: full order string }
+  legalIndex: {},        // { fromProv: [parsedOrder, ...] }
+};
+
+function parseOrder(s) {
+  // Examples to handle in Pass 1:
+  //   "A PAR H"
+  //   "A PAR - BUR"
+  //   "F STP/NC - BAR"
+  //   "A MAR S A PAR - BUR"             (support_move)
+  //   "A MAR S A PAR"                   (support_hold)
+  //   "F ENG C A LON - BEL"             (convoy)
+  //   "A LON - NWY VIA"                 (convoyed move)
+  const t = s.trim();
+  const tokens = t.split(/\s+/);
+  // unit-type + from + rest
+  const unit_type = tokens[0];                       // "A" or "F"
+  const from = tokens[1];                            // e.g. "PAR" or "STP/NC"
+  const verb = tokens[2];                            // "H", "-", "S", "C"
+  if (verb === "H") return { raw: s, kind: "hold", from };
+  if (verb === "-") {
+    return { raw: s, kind: "move", from, to: tokens[3], via: tokens[4] === "VIA" };
+  }
+  if (verb === "S") {
+    // tokens[3] = supported unit-type, tokens[4] = supported province
+    const sup_from = tokens[4];
+    if (tokens[5] === "-") {
+      return { raw: s, kind: "support_move", from, sup_from, sup_to: tokens[6] };
+    }
+    return { raw: s, kind: "support_hold", from, sup_target: sup_from };
+  }
+  if (verb === "C") {
+    return { raw: s, kind: "convoy", from, conv_from: tokens[4], conv_to: tokens[6] };
+  }
+  return { raw: s, kind: "unknown", from };
+}
+
+function svgEl(name, attrs = {}) {
+  const e = document.createElementNS("http://www.w3.org/2000/svg", name);
+  for (const [k, v] of Object.entries(attrs)) {
+    if (v != null) e.setAttribute(k, v);
+  }
+  return e;
+}
+
+function installMapOverlay(svg) {
+  state.mapSvg = svg;
+
+  // Inject our own defs (arrowheads) + overlay group, if not present.
+  if (!svg.querySelector("#vienna-overlay")) {
+    const defs = svgEl("defs");
+    defs.innerHTML = `
+      <marker id="ah-move" viewBox="0 0 12 12" refX="10" refY="6"
+              markerWidth="6" markerHeight="6" orient="auto" markerUnits="strokeWidth">
+        <path d="M0,0 L12,6 L0,12 Z" fill="#ffce4d"/>
+      </marker>
+      <marker id="ah-support" viewBox="0 0 12 12" refX="10" refY="6"
+              markerWidth="6" markerHeight="6" orient="auto" markerUnits="strokeWidth">
+        <path d="M0,0 L12,6 L0,12 Z" fill="#6ec0ff"/>
+      </marker>
+      <marker id="ah-convoy" viewBox="0 0 12 12" refX="10" refY="6"
+              markerWidth="6" markerHeight="6" orient="auto" markerUnits="strokeWidth">
+        <path d="M0,0 L12,6 L0,12 Z" fill="#5ae18b"/>
+      </marker>
+    `;
+    svg.appendChild(defs);
+    const g = svgEl("g", { id: "vienna-overlay" });
+    svg.appendChild(g);
+  }
+
+  // (re)wire click + hover handlers — replaceWith trick to drop old listeners
+  svg.onclick = onMapClick;
+  svg.onmouseover = onMapHover;
+  svg.onmouseout = onMapOut;
+
+  // Rebuild legal-orders index for the current orderable view.
+  rebuildLegalIndex();
+}
+
+function rebuildLegalIndex() {
+  orderState.legalIndex = {};
+  if (!state.orderable) return;
+  for (const [loc, orders] of Object.entries(state.orderable.possible_orders || {})) {
+    orderState.legalIndex[loc] = orders.map(parseOrder);
+  }
+}
+
+function provFromTarget(t) {
+  if (!t) return null;
+  const el = t.closest && t.closest('[id^="_"]');
+  if (!el) return null;
+  const id = el.id.slice(1);
+  if (!id || id.length > 7) return null;
+  // _par → "PAR" ; _stp_nc rare (we mostly use canonical "STP/NC" from orders)
+  return id.toUpperCase().replace("_", "/");
+}
+
+function locElement(loc) {
+  // "STP/NC" → tries _stp_nc, _stp/nc, _stp; pick the first that exists.
+  const lc = loc.toLowerCase();
+  const tries = [`_${lc.replace("/", "_")}`, `_${lc.replace("/", "")}`, `_${lc.split("/")[0]}`];
+  for (const id of tries) {
+    const el = state.mapSvg.querySelector(`[id="${CSS.escape(id)}"]`);
+    if (el) return el;
+  }
+  return null;
+}
+
+function centerOf(loc) {
+  const el = locElement(loc);
+  if (!el) return null;
+  try {
+    const b = el.getBBox();
+    return [b.x + b.width / 2, b.y + b.height / 2];
+  } catch { return null; }
+}
+
+function clearOverlay() {
+  const g = state.mapSvg?.querySelector("#vienna-overlay");
+  if (g) g.innerHTML = "";
+}
+
+function clearSelectionClasses() {
+  state.mapSvg?.querySelectorAll(".selected,.target,.hovered")
+    .forEach(el => el.classList.remove("selected", "target", "hovered"));
+  state.mapSvg?.classList.remove("focusing");
+}
+
+function curvedPath(p1, p2, lift = 0.2) {
+  const [x1, y1] = p1, [x2, y2] = p2;
+  const mx = (x1 + x2) / 2, my = (y1 + y2) / 2;
+  // perpendicular offset so straight-line clusters fan out
+  const dx = x2 - x1, dy = y2 - y1;
+  const len = Math.hypot(dx, dy) || 1;
+  const px = -dy / len, py = dx / len;
+  const k = len * lift;
+  const cx = mx + px * k, cy = my + py * k;
+  return `M ${x1} ${y1} Q ${cx} ${cy} ${x2} ${y2}`;
+}
+
+function drawArrowsFor(fromLoc) {
+  clearOverlay();
+  clearSelectionClasses();
+  const legal = orderState.legalIndex[fromLoc] || [];
+  const selEl = locElement(fromLoc);
+  if (selEl) selEl.classList.add("selected");
+  state.mapSvg.classList.add("focusing");
+
+  const overlay = state.mapSvg.querySelector("#vienna-overlay");
+  const fromCenter = centerOf(fromLoc);
+  if (!fromCenter) return;
+
+  const isStaged = (raw) => orderState.staged[fromLoc] === raw;
+
+  // Tag destination provinces so they un-dim
+  const targets = new Set();
+
+  // Spread parallel arrows by alternating curve direction for visual clarity.
+  let arrowIdx = 0;
+  for (const o of legal) {
+    if (o.kind === "hold") {
+      const el = locElement(o.from);
+      const b = el?.getBBox?.();
+      if (!b) continue;
+      const r = Math.max(b.width, b.height) * 0.55;
+      const ring = svgEl("circle", {
+        cx: b.x + b.width / 2, cy: b.y + b.height / 2, r,
+        class: `hold-ring ${isStaged(o.raw) ? "staged" : ""}`,
+        "data-order": o.raw, "data-from": fromLoc,
+      });
+      ring.addEventListener("click", e => { e.stopPropagation(); stageOrder(fromLoc, o.raw); });
+      overlay.appendChild(ring);
+    } else if (o.kind === "move") {
+      const to = centerOf(o.to);
+      if (!to) continue;
+      targets.add(o.to);
+      const lift = (arrowIdx++ % 2 === 0) ? 0.18 : -0.18;
+      const path = svgEl("path", {
+        d: curvedPath(fromCenter, to, lift),
+        class: `order-arrow move ${isStaged(o.raw) ? "staged" : ""}`,
+        "marker-end": "url(#ah-move)",
+        "data-order": o.raw, "data-from": fromLoc,
+      });
+      path.addEventListener("click", e => { e.stopPropagation(); stageOrder(fromLoc, o.raw); });
+      path.addEventListener("mouseover", () => {
+        locElement(o.to)?.classList.add("hovered");
+      });
+      path.addEventListener("mouseout", () => {
+        locElement(o.to)?.classList.remove("hovered");
+      });
+      overlay.appendChild(path);
+    }
+    // Pass 2 will add support_move, support_hold, convoy
+  }
+
+  for (const t of targets) locElement(t)?.classList.add("target");
+}
+
+function restageVisuals() {
+  // Re-apply 'staged' class to any saved orders' arrows when redrawing.
+  // (drawArrowsFor handles the currently-selected unit; this is for others)
+  // For Pass 1 we redraw only on selection, so nothing extra needed here yet.
+}
+
+function onMapClick(e) {
+  const tgt = e.target;
+  const prov = provFromTarget(tgt);
+  if (!prov) return;
+  const power = $("power").value;
+  const myUnits = (state.orderable?.orderable_by_power?.[power] || []);
+  // Click on one of my own orderable units → select
+  if (myUnits.includes(prov)) {
+    orderState.selected = prov;
+    drawArrowsFor(prov);
+    return;
+  }
+  // Click on a destination after selecting → try to stage the move
+  if (orderState.selected) {
+    const moves = (orderState.legalIndex[orderState.selected] || [])
+      .filter(o => o.kind === "move" && (o.to === prov || o.to.startsWith(prov + "/")));
+    if (moves.length) {
+      // Prefer non-coast-specific match if multiple
+      const m = moves.find(x => !x.to.includes("/")) || moves[0];
+      stageOrder(orderState.selected, m.raw);
+      return;
+    }
+  }
+}
+
+function onMapHover(e) {
+  const prov = provFromTarget(e.target);
+  if (!prov || prov === orderState.selected) return;
+  locElement(prov)?.classList.add("hovered");
+}
+function onMapOut(e) {
+  const prov = provFromTarget(e.target);
+  if (!prov) return;
+  locElement(prov)?.classList.remove("hovered");
+}
+
+function stageOrder(fromLoc, orderStr) {
+  orderState.staged[fromLoc] = orderStr;
+  // Sync the side-panel dropdown row to this order
+  const row = document.querySelector(`#order-form select[data-loc="${fromLoc}"]`);
+  if (row) row.value = orderStr;
+  // Re-render arrows so the chosen one is highlighted
+  drawArrowsFor(fromLoc);
+  toast(`Staged ${orderStr}`, "ok");
+}
+
+// Esc deselects; H sets hold on selected.
+document.addEventListener("keydown", e => {
+  if (["INPUT","TEXTAREA","SELECT"].includes(e.target.tagName)) return;
+  if (e.key === "Escape" && orderState.selected) {
+    orderState.selected = null;
+    clearOverlay(); clearSelectionClasses();
+  }
+  if ((e.key === "h" || e.key === "H") && orderState.selected) {
+    const hold = (orderState.legalIndex[orderState.selected] || [])
+      .find(o => o.kind === "hold");
+    if (hold) stageOrder(orderState.selected, hold.raw);
+  }
+});
 
 function applyMapTransform() {
   const svg = $("map-svg-host").querySelector("svg");
