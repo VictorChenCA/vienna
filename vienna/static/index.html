@@ -692,7 +692,15 @@
       </div>
       <div id="map-svg-host"></div>
       <div class="map-hint" id="map-hint" style="display:none">
-        Click a <b>unit</b> to see legal moves · <kbd>H</kbd> hold · <kbd>Esc</kbd> deselect
+        <div style="margin-bottom:6px">
+          Click a <b>unit</b> to see legal orders · <kbd>H</kbd> hold · <kbd>Esc</kbd> deselect
+        </div>
+        <div style="display:flex;gap:14px;font-size:10.5px;flex-wrap:wrap">
+          <span><span style="display:inline-block;width:18px;height:2px;background:#ffce4d;vertical-align:middle;margin-right:4px"></span>move</span>
+          <span><span style="display:inline-block;width:18px;height:2px;background:#6ec0ff;vertical-align:middle;margin-right:4px;background-image:linear-gradient(90deg,#6ec0ff 60%,transparent 60%);background-size:6px 100%"></span>support</span>
+          <span><span style="display:inline-block;width:18px;height:2px;background-image:radial-gradient(circle,#5ae18b 1px,transparent 1px);background-size:4px 4px;vertical-align:middle;margin-right:4px"></span>convoy</span>
+          <span><span style="display:inline-block;width:10px;height:10px;border:2px solid #ffce4d;border-radius:50%;vertical-align:middle;margin-right:4px"></span>hold</span>
+        </div>
       </div>
       <div class="map-controls">
         <button onclick="mapZoom(1.2)" title="Zoom in">+</button>
@@ -1063,12 +1071,26 @@ function rebuildOrderForm() {
     return `
       <div class="order-row">
         <div class="unit">${loc}</div>
-        <select data-loc="${loc}">${opts}</select>
+        <select data-loc="${loc}" onchange="onSidePanelOrderChange(this)">${opts}</select>
         <button class="remove" onclick="this.closest('.order-row').remove()" title="skip">×</button>
       </div>
     `;
   }).join("");
+  // Re-apply any staged orders to the dropdowns
+  for (const [loc, raw] of Object.entries(orderState.staged)) {
+    const sel = document.querySelector(`#order-form select[data-loc="${loc}"]`);
+    if (sel) sel.value = raw;
+  }
 }
+
+window.onSidePanelOrderChange = (sel) => {
+  // Side-panel → map sync
+  const loc = sel.dataset.loc;
+  const raw = sel.value;
+  orderState.staged[loc] = raw;
+  // If the unit currently selected on the map is this one, refresh its arrows
+  if (orderState.selected === loc) drawArrowsFor(loc);
+};
 window.rebuildOrderForm = rebuildOrderForm;
 
 window.submitOrders = async () => {
@@ -1332,7 +1354,97 @@ function drawArrowsFor(fromLoc) {
       });
       overlay.appendChild(path);
     }
-    // Pass 2 will add support_move, support_hold, convoy
+    else if (o.kind === "support_move") {
+      // Visual: dashed support arrow from supporter to the support DESTINATION
+      // (sup_to), with a small tick at sup_from to mark "the unit I'm
+      // supporting".
+      const dest = centerOf(o.sup_to);
+      const via = centerOf(o.sup_from);
+      if (!dest) continue;
+      targets.add(o.sup_to);
+      const lift = (arrowIdx++ % 2 === 0) ? 0.22 : -0.22;
+      const path = svgEl("path", {
+        d: curvedPath(fromCenter, dest, lift),
+        class: `order-arrow support ${isStaged(o.raw) ? "staged" : ""}`,
+        "marker-end": "url(#ah-support)",
+        "data-order": o.raw, "data-from": fromLoc,
+      });
+      path.addEventListener("click", e => { e.stopPropagation(); stageOrder(fromLoc, o.raw); });
+      path.addEventListener("mouseover", () => {
+        locElement(o.sup_to)?.classList.add("hovered");
+        locElement(o.sup_from)?.classList.add("hovered");
+      });
+      path.addEventListener("mouseout", () => {
+        locElement(o.sup_to)?.classList.remove("hovered");
+        locElement(o.sup_from)?.classList.remove("hovered");
+      });
+      overlay.appendChild(path);
+      // small tick at sup_from to indicate the supported unit
+      if (via) {
+        const tick = svgEl("circle", {
+          cx: via[0], cy: via[1], r: 7,
+          fill: "none", stroke: "#6ec0ff", "stroke-width": 3,
+          opacity: 0.7, "pointer-events": "none",
+        });
+        overlay.appendChild(tick);
+      }
+    }
+    else if (o.kind === "support_hold") {
+      // Dashed arrow from supporter to the unit being held in place.
+      const dest = centerOf(o.sup_target);
+      if (!dest) continue;
+      targets.add(o.sup_target);
+      const lift = (arrowIdx++ % 2 === 0) ? 0.22 : -0.22;
+      const path = svgEl("path", {
+        d: curvedPath(fromCenter, dest, lift),
+        class: `order-arrow support ${isStaged(o.raw) ? "staged" : ""}`,
+        "marker-end": "url(#ah-support)",
+        "data-order": o.raw, "data-from": fromLoc,
+      });
+      path.addEventListener("click", e => { e.stopPropagation(); stageOrder(fromLoc, o.raw); });
+      overlay.appendChild(path);
+      // ring around the held unit
+      const heldEl = locElement(o.sup_target);
+      if (heldEl) {
+        try {
+          const b = heldEl.getBBox();
+          const r = Math.max(b.width, b.height) * 0.42;
+          const ring = svgEl("circle", {
+            cx: b.x + b.width / 2, cy: b.y + b.height / 2, r,
+            fill: "none", stroke: "#6ec0ff", "stroke-width": 3,
+            "stroke-dasharray": "5 4",
+            opacity: 0.7, "pointer-events": "none",
+          });
+          overlay.appendChild(ring);
+        } catch {}
+      }
+    }
+    else if (o.kind === "convoy") {
+      // Wavy line from the convoying fleet through the cargo's origin to its
+      // destination. Visually: from fromLoc to conv_to, with a kink at conv_from.
+      const cargoFrom = centerOf(o.conv_from);
+      const cargoTo = centerOf(o.conv_to);
+      if (!cargoTo) continue;
+      targets.add(o.conv_to);
+      const d = cargoFrom
+        ? `M ${fromCenter[0]} ${fromCenter[1]} Q ${cargoFrom[0]} ${cargoFrom[1]} ${cargoTo[0]} ${cargoTo[1]}`
+        : curvedPath(fromCenter, cargoTo, 0.2);
+      const path = svgEl("path", {
+        d, class: `order-arrow convoy ${isStaged(o.raw) ? "staged" : ""}`,
+        "marker-end": "url(#ah-convoy)",
+        "data-order": o.raw, "data-from": fromLoc,
+      });
+      path.addEventListener("click", e => { e.stopPropagation(); stageOrder(fromLoc, o.raw); });
+      path.addEventListener("mouseover", () => {
+        locElement(o.conv_to)?.classList.add("hovered");
+        locElement(o.conv_from)?.classList.add("hovered");
+      });
+      path.addEventListener("mouseout", () => {
+        locElement(o.conv_to)?.classList.remove("hovered");
+        locElement(o.conv_from)?.classList.remove("hovered");
+      });
+      overlay.appendChild(path);
+    }
   }
 
   for (const t of targets) locElement(t)?.classList.add("target");
