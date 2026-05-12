@@ -54,7 +54,7 @@ inherited verbatim.
 
 ```bash
 # 1. Compare the published source to the running image
-git clone https://github.com/<you>/vienna && cd vienna
+git clone https://github.com/VictorChenCA/vienna && cd vienna
 git checkout <commit-sha-from-/verify>
 docker build --build-arg GIT_COMMIT=$(git rev-parse HEAD) -t vienna:local .
 docker inspect --format='{{.Id}}' vienna:local
