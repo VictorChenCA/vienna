@@ -1259,10 +1259,26 @@ function provFromTarget(t) {
   return id.toUpperCase().replace("_", "/");
 }
 
+// Five sea zones where the diplomacy engine's province code disagrees with
+// the SVG's element id. Discovered by walking every legal order against
+// the SVG's id table. Stable across phases / variants.
+const SVG_ID_ALIAS = {
+  LYO: "gol",  // Gulf of Lyon
+  MAO: "mid",  // Mid-Atlantic Ocean
+  NAO: "nat",  // North Atlantic Ocean
+  NWG: "nrg",  // Norwegian Sea
+  TYS: "tyn",  // Tyrrhenian Sea
+};
+
 function locElement(loc) {
-  // "STP/NC" → tries _stp_nc, _stp/nc, _stp; pick the first that exists.
-  const lc = loc.toLowerCase();
-  const tries = [`_${lc.replace("/", "_")}`, `_${lc.replace("/", "")}`, `_${lc.split("/")[0]}`];
+  // "STP/NC" → strip coast and try aliased base.
+  const base = loc.toUpperCase().split("/")[0];
+  const idBase = SVG_ID_ALIAS[base] || base.toLowerCase();
+  const tries = [
+    `_${idBase}`,
+    `_${loc.toLowerCase().replace("/", "_")}`,  // future-proof if SVG ever adds coasts
+    `_${loc.toLowerCase().replace("/", "")}`,
+  ];
   for (const id of tries) {
     const el = state.mapSvg.querySelector(`[id="${CSS.escape(id)}"]`);
     if (el) return el;
