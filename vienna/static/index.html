@@ -220,6 +220,28 @@
   .hold-ring:hover { opacity: 1; stroke-width: 7; }
   .hold-ring.staged { opacity: 1; stroke-width: 7; filter: drop-shadow(0 0 8px #ffce4d); }
 
+  /* Unit hit-zones: invisible big circle over each unit icon
+     so clicks register reliably without millimetre precision. */
+  .unit-hit {
+    fill: rgba(255,255,255,0.001);  /* not perfectly transparent so it actually hit-tests in all browsers */
+    stroke: none;
+    cursor: pointer;
+    pointer-events: all;
+  }
+  .unit-hit.own:hover {
+    fill: rgba(255,206,77,0.16);
+    stroke: rgba(255,206,77,0.7);
+    stroke-width: 2;
+  }
+  .unit-hit.own.selected {
+    fill: rgba(255,206,77,0.22);
+    stroke: var(--accent);
+    stroke-width: 3;
+    filter: drop-shadow(0 0 10px rgba(255,206,77,0.8));
+  }
+  /* Hint the cursor for ANY unit (own or not) — so it feels alive */
+  .unit-hit:hover { cursor: pointer; }
+
   /* Map hint overlay */
   .map-hint {
     position: absolute; bottom: 14px; left: 14px;
@@ -701,7 +723,7 @@
       <div id="map-svg-host"></div>
       <div class="map-hint" id="map-hint" style="display:none">
         <div style="margin-bottom:6px">
-          Click a <b>unit</b> to see legal orders · <kbd>H</kbd> hold · <kbd>Esc</kbd> deselect
+          Click any <b>unit icon</b> to see its legal orders · <kbd>H</kbd> hold · <kbd>Esc</kbd> deselect
         </div>
         <div style="display:flex;gap:14px;font-size:10.5px;flex-wrap:wrap">
           <span><span style="display:inline-block;width:18px;height:2px;background:#ffce4d;vertical-align:middle;margin-right:4px"></span>move</span>
@@ -1250,8 +1272,12 @@ function installMapOverlay(svg) {
       </marker>
     `;
     svg.appendChild(defs);
-    const g = svgEl("g", { id: "vienna-overlay" });
-    svg.appendChild(g);
+    // Two separate groups: hits stay alive across selection changes,
+    // arrows get redrawn every selection.
+    const gHits = svgEl("g", { id: "vienna-hits" });
+    const gArrows = svgEl("g", { id: "vienna-overlay" });
+    svg.appendChild(gHits);
+    svg.appendChild(gArrows);
   }
 
   // (re)wire click + hover handlers — replaceWith trick to drop old listeners
@@ -1261,6 +1287,75 @@ function installMapOverlay(svg) {
 
   // Rebuild legal-orders index for the current orderable view.
   rebuildLegalIndex();
+
+  // Inject a big, easy-to-click hit-zone over every unit icon. The
+  // diplomacy renderer's unit icons are ~13x21 px — basically un-clickable
+  // for most users. The overlay circles below are 22px-radius and route
+  // every click to the underlying province.
+  injectUnitHitZones(svg);
+}
+
+function injectUnitHitZones(svg) {
+  // Hit zones live in a separate group so clearOverlay() (which wipes
+  // arrows) doesn't take them out.
+  let hits = svg.querySelector("#vienna-hits");
+  if (!hits) {
+    hits = svgEl("g", { id: "vienna-hits" });
+    svg.appendChild(hits);
+  }
+  hits.innerHTML = "";  // clear prior round
+
+  // Find every unit icon currently rendered.
+  const units = svg.querySelectorAll('[id^="unit_"], [id^="dislodged_"]');
+  const power = $("power").value;
+  const myUnits = new Set((state.orderable?.orderable_by_power?.[power] || []));
+
+  for (const unit of units) {
+    const prov = unit.id.replace(/^(unit_|dislodged_)/, "").toUpperCase();
+    let bbox;
+    try { bbox = unit.getBBox(); } catch { continue; }
+    const cx = bbox.x + bbox.width / 2;
+    const cy = bbox.y + bbox.height / 2;
+    // r in SVG user-space. The SVG renders at ~0.45x scale typically,
+    // so r=50 gives a ~22-pixel screen radius (44px diameter) — a
+    // comfortable click target even on small unit icons.
+    const hit = svgEl("circle", {
+      cx, cy, r: 50,
+      class: `unit-hit ${myUnits.has(prov) ? "own" : ""}`,
+      "data-prov": prov,
+    });
+    hit.addEventListener("click", e => {
+      e.stopPropagation();
+      // Re-uses the same selection logic as the main map handler.
+      onUnitHitClick(prov);
+    });
+    hit.addEventListener("mouseover", () => locElement(prov)?.classList.add("hovered"));
+    hit.addEventListener("mouseout",  () => locElement(prov)?.classList.remove("hovered"));
+    hits.appendChild(hit);
+  }
+}
+
+function onUnitHitClick(prov) {
+  const power = $("power").value;
+  const myUnits = (state.orderable?.orderable_by_power?.[power] || []);
+  if (myUnits.includes(prov)) {
+    orderState.selected = prov;
+    drawArrowsFor(prov);
+    // re-mark the now-selected unit's hit zone
+    state.mapSvg.querySelectorAll(".unit-hit.own.selected").forEach(c => c.classList.remove("selected"));
+    state.mapSvg.querySelector(`.unit-hit[data-prov="${prov}"]`)?.classList.add("selected");
+    return;
+  }
+  // Click on another power's unit while one of yours is selected → try
+  // to stage a move/support/convoy that targets that province.
+  if (orderState.selected) {
+    const moves = (orderState.legalIndex[orderState.selected] || [])
+      .filter(o => o.kind === "move" && (o.to === prov || o.to.startsWith(prov + "/")));
+    if (moves.length) {
+      const m = moves.find(x => !x.to.includes("/")) || moves[0];
+      stageOrder(orderState.selected, m.raw);
+    }
+  }
 }
 
 function rebuildLegalIndex() {
