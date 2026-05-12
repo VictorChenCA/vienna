@@ -161,6 +161,45 @@ def healthz() -> dict[str, str]:
     return {"status": "ok", "version": __version__}
 
 
+@app.get("/games")
+def list_games() -> dict:
+    """All games hosted on this enclave instance, with summary state."""
+    out = []
+    for gid in ENGINE._games:
+        state = ENGINE.get_state(gid)
+        seats = AI_SEATS.get(gid, {})
+        out.append(
+            {
+                "game_id": gid,
+                "phase": state["phase"],
+                "turns_resolved": state["turns_resolved"],
+                "is_done": state["is_done"],
+                "submitted_powers": state["submitted_powers"],
+                "ai_seat_powers": sorted(seats.keys()),
+            }
+        )
+    return {"games": out, "enclave": KEYS.identity().to_dict()}
+
+
+@app.get("/games/{game_id}/ai-seats")
+def list_ai_seats(game_id: str) -> dict:
+    _not_found_if_unknown(game_id)
+    seats = AI_SEATS.get(game_id, {})
+    return {
+        "seats": [
+            {
+                "power": s.power,
+                "player_address": s.player_address,
+                "personality": s.personality.to_dict(),
+                "personality_fingerprint": s.personality.fingerprint(),
+                "balance_usdc": str(s.ledger.balance),
+                "spent_usdc": str(s.ledger.spent_usdc),
+            }
+            for s in seats.values()
+        ]
+    }
+
+
 @app.post("/games", response_model=CreateGameResponse)
 def create_game(req: CreateGameRequest) -> CreateGameResponse:
     game_id = req.game_id or f"g_{uuid.uuid4().hex[:12]}"
