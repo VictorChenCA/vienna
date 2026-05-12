@@ -237,9 +237,17 @@
     background: var(--bg); border: 1px solid var(--border);
     border-radius: 8px; padding: 12px;
     font-family: var(--mono); font-size: 11px; color: var(--dim);
-    max-height: 110px; overflow-y: auto;
+    max-height: 140px; overflow-y: auto;
     word-break: break-all; line-height: 1.5;
+    position: relative;
   }
+  .blob .copy-btn {
+    position: absolute; top: 8px; right: 8px;
+    background: var(--panel-2); border: 1px solid var(--border);
+    color: var(--fg-2); cursor: pointer; padding: 3px 8px;
+    font-size: 10.5px; border-radius: 5px; font-family: var(--mono);
+  }
+  .blob .copy-btn:hover { color: var(--fg); border-color: var(--border-strong); }
   .blob.encrypted {
     border-color: rgba(255,206,77,0.25);
     background: linear-gradient(180deg, rgba(255,206,77,0.04), transparent);
@@ -317,17 +325,21 @@
   }
   #map-svg-host.no-anim > svg { transition: none; }
   .map-controls {
-    position: absolute; bottom: 14px; right: 14px;
+    position: absolute; top: 14px; right: 14px;
     display: flex; flex-direction: column; gap: 4px;
     z-index: 4;
   }
   .map-controls button {
     width: 32px; height: 32px; padding: 0;
-    background: var(--panel-2); color: var(--fg);
+    background: rgba(13, 13, 18, 0.92);
+    backdrop-filter: blur(8px);
+    color: var(--fg);
     border: 1px solid var(--border);
     font-family: var(--mono); font-size: 16px; font-weight: 600;
-    line-height: 1; border-radius: 6px;
+    line-height: 1; border-radius: 7px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.3);
   }
+  .map-controls button:hover { background: var(--panel-2); }
   .map-overlay-top {
     position: absolute; top: 14px; left: 14px; right: 14px;
     z-index: 4; display: flex; gap: 8px; align-items: center;
@@ -464,8 +476,9 @@
     <span class="tag">verifiable diplomacy on EigenCompute</span>
   </div>
   <div class="header-right">
-    <span class="pill" id="image-pill">image: —</span>
-    <span class="pill live" id="enclave-pill">enclave: connecting…</span>
+    <button class="ghost sm" onclick="openModal('about-modal')" style="margin-right:4px">What is this?</button>
+    <span class="pill" id="image-pill" title="Image digest — bound to the running binary. Click to inspect.">image: —</span>
+    <span class="pill live" id="enclave-pill" title="The enclave's signing key. Generated inside the TEE; private half never leaves.">enclave: connecting…</span>
   </div>
 </header>
 
@@ -525,6 +538,7 @@
       <div class="field">
         <label>You are playing</label>
         <select id="power" onchange="rebuildOrderForm()"></select>
+        <div id="submitted-pills" class="badges" style="margin-top:8px;display:flex;flex-wrap:wrap;gap:4px"></div>
       </div>
 
       <h4>Your units</h4>
@@ -534,15 +548,19 @@
 
       <h4>Encrypted envelope</h4>
       <div class="blob encrypted" id="latest-ciphertext">
+        <button class="copy-btn" id="copy-cipher" style="display:none" onclick="copyCipher()">copy</button>
         <span class="dim">— submit orders to see the sealed-box envelope —</span>
       </div>
 
       <div class="row" style="margin-top:18px">
-        <button class="accent" onclick="submitOrders()">Encrypt + submit</button>
+        <button class="accent" onclick="submitOrders()" title="⌘/Ctrl-S">Encrypt + submit</button>
       </div>
-      <button class="ghost block" style="margin-top:8px" onclick="resolveTurn()">
-        Resolve turn →
-      </button>
+      <div class="row" style="margin-top:8px">
+        <button class="ghost" onclick="seedDemoOrders()" title="Fill all 7 powers with canonical openings — for demo speed">
+          🌱 Demo seed
+        </button>
+        <button class="ghost" onclick="resolveTurn()" title="R">Resolve →</button>
+      </div>
 
       <h4>Game info</h4>
       <div class="mono dim" id="game-meta">—</div>
@@ -593,6 +611,42 @@
       <div class="verify-cli" id="verify-cli-snippet">$ npx vienna-verify &lt;turn-url&gt;</div>
     </div>
   </section>
+</div>
+
+<!-- ─── ABOUT / TRUST EXPLAINER MODAL ───────────────────────── -->
+<div class="modal-backdrop" id="about-modal" onclick="if(event.target===this)closeModal('about-modal')">
+  <div class="modal">
+    <h3>Why this is on EigenCompute</h3>
+    <div class="modal-sub">A 90-second explainer for anyone hitting the page cold.</div>
+
+    <p style="font-size:14px;line-height:1.6;color:var(--fg-2);margin:0 0 14px">
+      Diplomacy is the only major board game whose rules <em>structurally require</em> a trusted third party:
+      seven players write secret orders, a GM holds and reveals them, then runs a complex adjudicator.
+      Every online Diplomacy server today asks you to trust the company hosting it.
+    </p>
+    <p style="font-size:14px;line-height:1.6;color:var(--fg-2);margin:0 0 14px">
+      Vienna runs that adjudicator inside an <b>Intel TDX enclave</b>. Concretely:
+    </p>
+    <div style="display:grid;gap:10px;font-size:13px;line-height:1.5">
+      <div style="display:flex;gap:10px"><div style="color:var(--accent);font-weight:600;width:160px;flex-shrink:0">Encrypted memory</div>
+        <div>Your orders are sealed-box encrypted to a keypair that lives only in the enclave. The host OS — and the developer — can't read them.</div></div>
+      <div style="display:flex;gap:10px"><div style="color:var(--accent);font-weight:600;width:160px;flex-shrink:0">Attestations</div>
+        <div>Every turn delta is Ed25519-signed by a key the enclave generated at boot. The pubkey is bound to the running binary's measurement.</div></div>
+      <div style="display:flex;gap:10px"><div style="color:var(--accent);font-weight:600;width:160px;flex-shrink:0">Source verifiability</div>
+        <div>Rebuild from the public repo and compare the image digest. <code>/verify</code> tells you the commit you should be building from.</div></div>
+      <div style="display:flex;gap:10px"><div style="color:var(--accent);font-weight:600;width:160px;flex-shrink:0">Agent commerce</div>
+        <div>AI seats pay their own per-turn inference via x402/MPP. Each Claude call debits a USDC deposit; out of funds = seat suspended.</div></div>
+      <div style="display:flex;gap:10px"><div style="color:var(--accent);font-weight:600;width:160px;flex-shrink:0">Programmatic payouts</div>
+        <div>Game-end winner attestation is signed by the enclave. An on-chain escrow recovers the pubkey and releases the pot — no admin in the loop.</div></div>
+    </div>
+
+    <p style="font-size:13px;color:var(--dim);margin-top:18px">
+      Click any <span class="chip" style="cursor:default">✓ Verified</span> chip on a turn to see the trust chain unfold.
+    </p>
+    <div style="text-align:right;margin-top:12px">
+      <button class="accent" onclick="closeModal('about-modal')">Got it</button>
+    </div>
+  </div>
 </div>
 
 <!-- ─── VERIFY MODAL ────────────────────────────────────────── -->
@@ -865,9 +919,18 @@ function updateGameMeta() {
     game: <b>${state.gameId}</b><br/>
     phase: ${state.gameState.phase}<br/>
     turns: ${state.gameState.turns_resolved}<br/>
-    submitted: ${state.gameState.submitted_powers.join(", ") || "—"}<br/>
     state hash: ${state.gameState.state_hash.slice(0,16)}…
   `;
+  // Submitted-power pills next to the selector
+  const aiPowers = new Set(state.seats.map(s => s.power));
+  $("submitted-pills").innerHTML = POWERS.map(p => {
+    const sub = state.gameState.submitted_powers.includes(p);
+    const ai = aiPowers.has(p);
+    if (!sub && !ai) return "";
+    const cls = ai ? "badge" : "badge power";
+    const label = ai ? `AI · ${p}` : `${p} ✓`;
+    return `<span class="${cls}">${label}</span>`;
+  }).join("");
 }
 
 function rebuildOrderForm() {
@@ -900,7 +963,9 @@ window.submitOrders = async () => {
     .map(s => s.value).filter(Boolean);
   if (!orders.length) { toast("No orders selected", "error"); return; }
   const envelope = await sealForEnclave(JSON.stringify({ power, orders }));
-  $("latest-ciphertext").textContent = envelope;
+  const blob = $("latest-ciphertext");
+  blob.innerHTML = `<button class="copy-btn" onclick="copyCipher()">copy</button>` + envelope;
+  state.lastCipher = envelope;
   try {
     await api_(`/games/${state.gameId}/orders`, {
       method: "POST", body: JSON.stringify({ ciphertext: envelope }),
@@ -1159,6 +1224,97 @@ window.openVerify = async (envelope) => {
 };
 
 window.closeModal = (id) => $(id).classList.remove("open");
+window.openModal = (id) => $(id).classList.add("open");
+
+window.copyCipher = () => {
+  if (state.lastCipher) {
+    navigator.clipboard.writeText(state.lastCipher);
+    toast("Ciphertext copied", "ok");
+  }
+};
+
+// =============================================================
+// DEMO SEED — canonical openings for all 7 powers
+// =============================================================
+const DEMO_OPENINGS = {
+  AUSTRIA: ["A VIE - GAL", "A BUD - SER", "F TRI - ALB"],
+  ENGLAND: ["F LON - NTH", "F EDI - NWG", "A LVP - YOR"],
+  FRANCE:  ["A PAR - BUR", "F BRE - MAO", "A MAR S A PAR - BUR"],
+  GERMANY: ["A MUN - RUH", "F KIE - DEN", "A BER - KIE"],
+  ITALY:   ["A VEN H", "A ROM - APU", "F NAP - ION"],
+  RUSSIA:  ["A MOS - UKR", "A WAR - GAL", "F SEV - BLA", "F STP/SC - BOT"],
+  TURKEY:  ["A CON - BUL", "A SMY - CON", "F ANK - BLA"],
+};
+
+window.seedDemoOrders = async () => {
+  if (!confirm("Submit canonical openings for all 7 powers? This is a fast-path demo.")) return;
+  // Skip powers that have already submitted or are AI-controlled.
+  const taken = new Set([
+    ...state.gameState.submitted_powers,
+    ...state.seats.map(s => s.power),
+  ]);
+  let n = 0;
+  for (const [power, orders] of Object.entries(DEMO_OPENINGS)) {
+    if (taken.has(power)) continue;
+    const envelope = await sealForEnclave(JSON.stringify({ power, orders }));
+    try {
+      await api_(`/games/${state.gameId}/orders`, {
+        method: "POST", body: JSON.stringify({ ciphertext: envelope }),
+      });
+      n++;
+    } catch (e) { /* skip — engine may reject if power has already moved this phase */ }
+  }
+  toast(`Seeded ${n} power${n === 1 ? "" : "s"}`, "ok");
+  await refreshAll();
+};
+
+// =============================================================
+// KEYBOARD SHORTCUTS
+// =============================================================
+function installShortcuts() {
+  document.addEventListener("keydown", e => {
+    // Escape: close any open modal
+    if (e.key === "Escape") {
+      $$(".modal-backdrop.open").forEach(m => m.classList.remove("open"));
+      return;
+    }
+    // Skip if typing in an input
+    if (["INPUT","TEXTAREA","SELECT"].includes(e.target.tagName)) return;
+    if (state.view === "game") {
+      if (e.key === "r" || e.key === "R") { e.preventDefault(); resolveTurn(); }
+      if (e.key === "s" || e.key === "S") { e.preventDefault(); seedDemoOrders(); }
+      if (e.key === "a" || e.key === "A") { e.preventDefault(); openAddSeat(); }
+      if (e.key === "?") { e.preventDefault(); openModal("about-modal"); }
+    }
+    if (state.view === "lobby") {
+      if (e.key === "n" || e.key === "N") { e.preventDefault(); $("new-game-id").focus(); }
+    }
+  });
+}
+
+// =============================================================
+// AUTO-REFRESH
+// =============================================================
+let pollTimer = null;
+function startPolling() {
+  if (pollTimer) clearInterval(pollTimer);
+  pollTimer = setInterval(() => {
+    if (state.view === "game" && state.gameId && !document.hidden) {
+      // Light refresh — only state + seats, not the map SVG
+      api_(`/games/${state.gameId}/state`).then(r => {
+        // If something changed, refresh fully
+        if (!state.gameState ||
+            r.state.turns_resolved !== state.gameState.turns_resolved ||
+            r.state.submitted_powers.length !== state.gameState.submitted_powers.length) {
+          refreshAll();
+        }
+      }).catch(() => {});
+    }
+    if (state.view === "lobby" && !document.hidden) {
+      refreshLobby();
+    }
+  }, 5000);
+}
 
 // =============================================================
 // RESIZABLE PANES
@@ -1205,6 +1361,8 @@ function installResizers() {
 async function boot() {
   installMapInteractions();
   installResizers();
+  installShortcuts();
+  startPolling();
   await loadEnclave();
   goto("lobby");
 }
