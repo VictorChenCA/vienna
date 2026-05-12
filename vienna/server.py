@@ -379,14 +379,18 @@ def attestation() -> AttestationResponse:
 
 @app.get("/verify", response_model=VerifyResponse)
 def verify() -> VerifyResponse:
-    commit = os.environ.get("VIENNA_COMMIT", "dev-local")
-    image_digest = os.environ.get("VIENNA_IMAGE_DIGEST", f"sha256:dev-{commit}")
+    # Single source of truth: KEYS.image_digest. Whatever the enclave
+    # used to label its signing key is what /verify reports — so the
+    # CLI's "delta.image_digest == /verify.image_digest" check is
+    # always meaningful, not a comparison of two independent envs.
+    image_digest = KEYS.image_digest
+    commit = os.environ.get("VIENNA_COMMIT", image_digest)
     return VerifyResponse(
         image_digest=image_digest,
         commit_sha=commit,
         version=__version__,
         reproducible_build_command=(
-            f"docker build --build-arg GIT_COMMIT={commit} -t vienna:{commit} ."
+            f"docker build --build-arg GIT_COMMIT={commit} -t vienna:{commit[:12]} ."
         ),
     )
 
