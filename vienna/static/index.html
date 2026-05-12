@@ -146,6 +146,30 @@
     border: 1px dashed var(--border); border-radius: 12px;
   }
 
+  /* "How it works" feature grid on the lobby */
+  .features {
+    grid-column: 1 / -1;
+    margin-top: 32px;
+    border-top: 1px solid var(--border);
+    padding-top: 32px;
+  }
+  .features-grid {
+    display: grid; grid-template-columns: repeat(5, 1fr); gap: 14px;
+    margin-top: 6px;
+  }
+  .feature {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 12px; padding: 14px 16px;
+  }
+  .feature .name {
+    font-size: 11px; text-transform: uppercase; letter-spacing: 0.1em;
+    color: var(--accent); font-weight: 600; margin-bottom: 8px;
+  }
+  .feature .desc { font-size: 12.5px; color: var(--fg-2); line-height: 1.55; }
+
+  /* hide the diplomacy SVG's built-in phase label — duplicates ours */
+  #map-svg-host svg > text:last-of-type { display: none; }
+
   /* ─── GAME VIEW ──────────────────────────────────────────── */
   #game {
     flex-direction: row;
@@ -523,6 +547,33 @@
         <button onclick="joinGame()">Join</button>
       </div>
     </div>
+
+    <!-- Feature grid (full width) -->
+    <div class="features">
+      <h3>How it works</h3>
+      <div class="features-grid">
+        <div class="feature">
+          <div class="name">Encrypted memory</div>
+          <div class="desc">Orders are sealed-box encrypted to a keypair that lives only inside the enclave. Even the developer can't read them.</div>
+        </div>
+        <div class="feature">
+          <div class="name">Attestations</div>
+          <div class="desc">Every turn delta is Ed25519-signed by a key generated in-enclave and bound to the running binary's measurement.</div>
+        </div>
+        <div class="feature">
+          <div class="name">Source verifiability</div>
+          <div class="desc">Rebuild from the public repo, compare image digests. <code>/verify</code> publishes the commit you should be matching.</div>
+        </div>
+        <div class="feature">
+          <div class="name">Agent commerce</div>
+          <div class="desc">AI seats pay their own per-turn inference via x402 / MPP. Out of USDC = seat suspended. No house bot.</div>
+        </div>
+        <div class="feature">
+          <div class="name">Programmatic payouts</div>
+          <div class="desc">Game-end winner attestation is signed by the enclave; an on-chain escrow recovers the pubkey and releases the pot.</div>
+        </div>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -606,9 +657,9 @@
 
       <h4>Verify locally</h4>
       <div class="dim" style="font-size:11.5px;margin-bottom:6px">
-        Independently re-check any turn from a clean terminal:
+        Independently re-check the latest turn from a clean terminal:
       </div>
-      <div class="verify-cli" id="verify-cli-snippet">$ npx vienna-verify &lt;turn-url&gt;</div>
+      <div class="verify-cli" id="verify-cli-snippet">$ npx vienna-verify &lt;create a turn first&gt;</div>
     </div>
   </section>
 </div>
@@ -978,6 +1029,10 @@ window.submitOrders = async () => {
 };
 
 window.resolveTurn = async () => {
+  const submitted = state.gameState?.submitted_powers?.length || 0;
+  if (submitted === 0) {
+    if (!confirm("No powers have submitted yet. Resolve anyway? All powers will hold.")) return;
+  }
   try {
     await api_(`/games/${state.gameId}/resolve`, { method: "POST" });
     toast("Turn resolved", "ok");
@@ -1108,6 +1163,11 @@ async function refreshTurns() {
   }
   pips.push(`<div class="turn-pip current">${state.gameState.phase} (current)</div>`);
   tl.innerHTML = pips.join("");
+
+  // Auto-populate the side-pane verify CLI snippet with the latest turn URL.
+  const n = state.gameState.turns_resolved;
+  $("verify-cli-snippet").textContent =
+    `$ npx vienna-verify ${window.location.origin}/games/${state.gameId}/turns/${n}`;
 }
 
 // =============================================================
