@@ -170,22 +170,10 @@
   /* hide the diplomacy SVG's built-in phase label — duplicates ours */
   #map-svg-host svg > text:last-of-type { display: none; }
 
-  /* ─── INTERACTIVE MAP: highlights, arrows, ghost ──────────── */
-  #map-svg-host svg [id^="_"] {
-    transition: opacity 0.15s, filter 0.15s;
-  }
-  #map-svg-host svg.focusing [id^="_"]:not(.hovered):not(.selected):not(.target) {
-    opacity: 0.35;
-  }
-  #map-svg-host svg [id^="_"].hovered {
-    filter: brightness(1.2) drop-shadow(0 0 6px rgba(255,206,77,0.6));
-  }
-  #map-svg-host svg [id^="_"].selected {
-    filter: brightness(1.3) drop-shadow(0 0 10px var(--accent));
-  }
-  #map-svg-host svg [id^="_"].target {
-    filter: brightness(1.15) drop-shadow(0 0 6px rgba(110,192,255,0.7));
-  }
+  /* ─── INTERACTIVE MAP ───────────────────────────────────────
+     The map itself stays static. All selection / interaction lives
+     in the arrows + the unit hit zones. No territory dimming, no
+     province highlights — they fight the map's existing colours. */
 
   /* Order arrows we inject into the SVG */
   .order-arrow {
@@ -221,26 +209,14 @@
   .hold-ring.staged { opacity: 1; stroke-width: 7; filter: drop-shadow(0 0 8px #ffce4d); }
 
   /* Unit hit-zones: invisible big circle over each unit icon
-     so clicks register reliably without millimetre precision. */
+     so clicks register reliably without millimetre precision.
+     Never visible — just cursor + click-through. */
   .unit-hit {
     fill: rgba(255,255,255,0.001);  /* not perfectly transparent so it actually hit-tests in all browsers */
     stroke: none;
     cursor: pointer;
     pointer-events: all;
   }
-  .unit-hit.own:hover {
-    fill: rgba(255,206,77,0.16);
-    stroke: rgba(255,206,77,0.7);
-    stroke-width: 2;
-  }
-  .unit-hit.own.selected {
-    fill: rgba(255,206,77,0.22);
-    stroke: var(--accent);
-    stroke-width: 3;
-    filter: drop-shadow(0 0 10px rgba(255,206,77,0.8));
-  }
-  /* Hint the cursor for ANY unit (own or not) — so it feels alive */
-  .unit-hit:hover { cursor: pointer; }
 
   /* Map hint overlay */
   .map-hint {
@@ -1341,9 +1317,6 @@ function onUnitHitClick(prov) {
   if (myUnits.includes(prov)) {
     orderState.selected = prov;
     drawArrowsFor(prov);
-    // re-mark the now-selected unit's hit zone
-    state.mapSvg.querySelectorAll(".unit-hit.own.selected").forEach(c => c.classList.remove("selected"));
-    state.mapSvg.querySelector(`.unit-hit[data-prov="${prov}"]`)?.classList.add("selected");
     return;
   }
   // Click on another power's unit while one of yours is selected → try
@@ -1432,14 +1405,34 @@ function centerOf(loc) {
   } catch { return null; }
 }
 
+// Arrow origin: prefer the unit icon's actual on-map position over the
+// province polygon's bounding-box centre. Province bboxes for big
+// irregular territories (e.g. Russia, Spain) put the centre far from
+// where the unit visually sits. Falls back to polygon centre if no
+// unit is rendered there.
+function unitCenterOf(loc) {
+  const base = loc.toUpperCase().split("/")[0];  // ignore coast suffix
+  const unit = state.mapSvg?.querySelector(
+    `[id="unit_${base}"], [id="dislodged_${base}"]`
+  );
+  if (unit) {
+    try {
+      const b = unit.getBBox();
+      return [b.x + b.width / 2, b.y + b.height / 2];
+    } catch { /* fall through */ }
+  }
+  return centerOf(loc);
+}
+
 function clearOverlay() {
   const g = state.mapSvg?.querySelector("#vienna-overlay");
   if (g) g.innerHTML = "";
 }
 
 function clearSelectionClasses() {
-  state.mapSvg?.querySelectorAll(".selected,.target,.hovered")
-    .forEach(el => el.classList.remove("selected", "target", "hovered"));
+  // We no longer mark .selected/.target/.hovered on the territory
+  // polygons (the dim+highlight was visually noisy). Selection is now
+  // expressed entirely via the arrows fanning out from the unit.
   state.mapSvg?.classList.remove("focusing");
 }
 
@@ -1459,12 +1452,9 @@ function drawArrowsFor(fromLoc) {
   clearOverlay();
   clearSelectionClasses();
   const legal = orderState.legalIndex[fromLoc] || [];
-  const selEl = locElement(fromLoc);
-  if (selEl) selEl.classList.add("selected");
-  state.mapSvg.classList.add("focusing");
-
   const overlay = state.mapSvg.querySelector("#vienna-overlay");
-  const fromCenter = centerOf(fromLoc);
+  // Arrows fan out from the unit icon, not the province polygon centre.
+  const fromCenter = unitCenterOf(fromLoc);
   if (!fromCenter) return;
 
   const isStaged = (raw) => orderState.staged[fromLoc] === raw;
@@ -1488,23 +1478,19 @@ function drawArrowsFor(fromLoc) {
       ring.addEventListener("click", e => { e.stopPropagation(); stageOrder(fromLoc, o.raw); });
       overlay.appendChild(ring);
     } else if (o.kind === "move") {
-      const to = centerOf(o.to);
+      const to = unitCenterOf(o.to);
       if (!to) continue;
       targets.add(o.to);
       const lift = (arrowIdx++ % 2 === 0) ? 0.18 : -0.18;
-      addArrowPair(overlay, curvedPath(fromCenter, to, lift), "move", "ah-move", o.raw, fromLoc,
-        () => locElement(o.to)?.classList.add("hovered"),
-        () => locElement(o.to)?.classList.remove("hovered"));
+      addArrowPair(overlay, curvedPath(fromCenter, to, lift), "move", "ah-move", o.raw, fromLoc);
     }
     else if (o.kind === "support_move") {
-      const dest = centerOf(o.sup_to);
-      const via = centerOf(o.sup_from);
+      const dest = unitCenterOf(o.sup_to);
+      const via = unitCenterOf(o.sup_from);
       if (!dest) continue;
       targets.add(o.sup_to);
       const lift = (arrowIdx++ % 2 === 0) ? 0.22 : -0.22;
-      addArrowPair(overlay, curvedPath(fromCenter, dest, lift), "support", "ah-support", o.raw, fromLoc,
-        () => { locElement(o.sup_to)?.classList.add("hovered"); locElement(o.sup_from)?.classList.add("hovered"); },
-        () => { locElement(o.sup_to)?.classList.remove("hovered"); locElement(o.sup_from)?.classList.remove("hovered"); });
+      addArrowPair(overlay, curvedPath(fromCenter, dest, lift), "support", "ah-support", o.raw, fromLoc);
       if (via) {
         const tick = svgEl("circle", {
           cx: via[0], cy: via[1], r: 7,
@@ -1515,7 +1501,7 @@ function drawArrowsFor(fromLoc) {
       }
     }
     else if (o.kind === "support_hold") {
-      const dest = centerOf(o.sup_target);
+      const dest = unitCenterOf(o.sup_target);
       if (!dest) continue;
       targets.add(o.sup_target);
       const lift = (arrowIdx++ % 2 === 0) ? 0.22 : -0.22;
@@ -1537,20 +1523,16 @@ function drawArrowsFor(fromLoc) {
       }
     }
     else if (o.kind === "convoy") {
-      const cargoFrom = centerOf(o.conv_from);
-      const cargoTo = centerOf(o.conv_to);
+      const cargoFrom = unitCenterOf(o.conv_from);
+      const cargoTo = unitCenterOf(o.conv_to);
       if (!cargoTo) continue;
       targets.add(o.conv_to);
       const d = cargoFrom
         ? `M ${fromCenter[0]} ${fromCenter[1]} Q ${cargoFrom[0]} ${cargoFrom[1]} ${cargoTo[0]} ${cargoTo[1]}`
         : curvedPath(fromCenter, cargoTo, 0.2);
-      addArrowPair(overlay, d, "convoy", "ah-convoy", o.raw, fromLoc,
-        () => { locElement(o.conv_to)?.classList.add("hovered"); locElement(o.conv_from)?.classList.add("hovered"); },
-        () => { locElement(o.conv_to)?.classList.remove("hovered"); locElement(o.conv_from)?.classList.remove("hovered"); });
+      addArrowPair(overlay, d, "convoy", "ah-convoy", o.raw, fromLoc);
     }
   }
-
-  for (const t of targets) locElement(t)?.classList.add("target");
 }
 
 // Helper: add a wide invisible hit-path + the visible arrow so users
@@ -1613,16 +1595,8 @@ function onMapClick(e) {
   }
 }
 
-function onMapHover(e) {
-  const prov = provFromTarget(e.target, e.clientX, e.clientY);
-  if (!prov || prov === orderState.selected) return;
-  locElement(prov)?.classList.add("hovered");
-}
-function onMapOut(e) {
-  const prov = provFromTarget(e.target, e.clientX, e.clientY);
-  if (!prov) return;
-  locElement(prov)?.classList.remove("hovered");
-}
+function onMapHover(e) { /* no-op — no province lighten on hover */ }
+function onMapOut(e)  { /* no-op */ }
 
 function stageOrder(fromLoc, orderStr) {
   orderState.staged[fromLoc] = orderStr;
