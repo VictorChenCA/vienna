@@ -26,7 +26,7 @@ import os
 from dataclasses import dataclass
 from typing import Any
 
-from nacl.public import PrivateKey, PublicKey, SealedBox
+from nacl.public import Box, PrivateKey, PublicKey, SealedBox
 from nacl.signing import SigningKey, VerifyKey
 
 
@@ -82,18 +82,33 @@ class EnclaveKeys:
 
     # -- decryption --------------------------------------------------
 
-    def decrypt_order_envelope(self, ciphertext_b64: str) -> dict:
-        """Decrypt a sealed-box order envelope and parse it as JSON.
+    def decrypt_order_envelope(self, envelope: str) -> dict:
+        """Decrypt an order envelope and parse the JSON inside.
 
-        Clients construct the envelope with libsodium / @stablelib / NaCl:
-            envelope = sealed_box(enclave_pubkey).encrypt(json.dumps(orders))
-            ciphertext_b64 = base64(envelope)
+        Two envelope formats are accepted:
+
+        1. **Sealed box** (PyNaCl / libsodium clients): base64 of the
+           libsodium ``crypto_box_seal`` ciphertext. Compact, used by
+           the Python `seal_for` helper.
+
+        2. **Hybrid envelope** (browser / tweetnacl clients): a JSON
+           document ``{"epk": <ephemeral pubkey b64>, "nonce": <b64>,
+           "ct": <b64>}``. Equivalent to a sealed box but assembled
+           manually because tweetnacl doesn't ship sealed-box.
 
         Returns the decoded order document. Shape is up to the caller —
-        Vienna uses {"power": "FRANCE", "orders": ["A PAR - BUR", ...]}.
+        Vienna uses ``{"power": "FRANCE", "orders": ["A PAR - BUR", ...]}``.
         """
-        box = SealedBox(self._encryption_priv)
-        plaintext = box.decrypt(_b64d(ciphertext_b64))
+        stripped = envelope.strip()
+        if stripped.startswith("{"):
+            doc = json.loads(stripped)
+            ephem_pub = PublicKey(_b64d(doc["epk"]))
+            nonce = _b64d(doc["nonce"])
+            box = Box(self._encryption_priv, ephem_pub)
+            plaintext = box.decrypt(_b64d(doc["ct"]), nonce)
+        else:
+            box = SealedBox(self._encryption_priv)
+            plaintext = box.decrypt(_b64d(envelope))
         return json.loads(plaintext.decode())
 
     # -- signing -----------------------------------------------------

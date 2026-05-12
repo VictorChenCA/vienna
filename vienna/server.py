@@ -25,6 +25,8 @@ from typing import Any
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse, Response
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from vienna import __version__
@@ -319,6 +321,33 @@ def get_state(game_id: str) -> GameStateResponse:
     return GameStateResponse(game_id=game_id, state=ENGINE.get_state(game_id))
 
 
+@app.get("/games/{game_id}/orderable")
+def get_orderable(game_id: str) -> dict:
+    """Surface the engine's orderable-locations + possible-orders dicts
+    so the UI can render legal-move dropdowns."""
+    _not_found_if_unknown(game_id)
+    record = ENGINE._record(game_id)
+    game = record.game
+    possible = game.get_all_possible_orders()
+    return {
+        "phase": game.get_current_phase(),
+        "orderable_by_power": {
+            p: list(game.get_orderable_locations(p)) for p in game.powers
+        },
+        "possible_orders": {loc: list(orders) for loc, orders in possible.items() if orders},
+    }
+
+
+@app.get("/games/{game_id}/map.svg")
+def render_map(game_id: str) -> Response:
+    _not_found_if_unknown(game_id)
+    record = ENGINE._record(game_id)
+    from diplomacy.engine.renderer import Renderer
+
+    svg = Renderer(record.game).render()
+    return Response(content=svg, media_type="image/svg+xml")
+
+
 @app.get("/games/{game_id}/turns/{n}", response_model=TurnResponse)
 def get_turn(game_id: str, n: int) -> TurnResponse:
     _not_found_if_unknown(game_id)
@@ -371,3 +400,16 @@ def _sha256(s: str) -> str:
     import hashlib
 
     return hashlib.sha256(s.encode()).hexdigest()
+
+
+# ---------------------------------------------------------------------------
+# Static UI — mounted last so /healthz, /games/... still resolve first.
+# ---------------------------------------------------------------------------
+
+_STATIC_DIR = os.path.join(os.path.dirname(__file__), "static")
+if os.path.isdir(_STATIC_DIR):
+    app.mount("/ui", StaticFiles(directory=_STATIC_DIR, html=True), name="ui")
+
+    @app.get("/")
+    def root() -> FileResponse:
+        return FileResponse(os.path.join(_STATIC_DIR, "index.html"))

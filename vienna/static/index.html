@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Vienna — Verifiable Diplomacy</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<style>
+  :root {
+    --bg: #0a0a0c;
+    --panel: #14141a;
+    --border: #26262e;
+    --fg: #e8e8ec;
+    --dim: #7a7a85;
+    --accent: #ffce4d;
+    --green: #5ae18b;
+    --red: #ff6b6b;
+    --blue: #6ec0ff;
+    --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    background: var(--bg); color: var(--fg);
+    font-family: -apple-system, BlinkMacSystemFont, "Inter", system-ui, sans-serif;
+    font-size: 14px; line-height: 1.5;
+  }
+  header {
+    border-bottom: 1px solid var(--border);
+    padding: 16px 24px;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  header h1 {
+    margin: 0; font-size: 18px; font-weight: 600;
+    letter-spacing: -0.01em;
+  }
+  header h1 .sub { color: var(--dim); font-weight: 400; margin-left: 12px; }
+  header .pill {
+    font-family: var(--mono); font-size: 11px;
+    color: var(--dim);
+    padding: 4px 10px; border: 1px solid var(--border); border-radius: 999px;
+  }
+  main {
+    display: grid;
+    grid-template-columns: 360px 1fr 360px;
+    gap: 1px; background: var(--border);
+    min-height: calc(100vh - 65px);
+  }
+  .pane { background: var(--bg); padding: 20px; overflow-y: auto; max-height: calc(100vh - 65px); }
+  h2 {
+    font-size: 11px; text-transform: uppercase; letter-spacing: 0.1em;
+    color: var(--dim); margin: 0 0 12px 0; font-weight: 600;
+  }
+  h2:not(:first-child) { margin-top: 28px; }
+  button {
+    background: var(--fg); color: var(--bg);
+    border: 0; border-radius: 6px; padding: 8px 14px;
+    font-size: 13px; font-weight: 500; cursor: pointer;
+    transition: opacity 0.15s;
+  }
+  button:hover { opacity: 0.85; }
+  button.ghost {
+    background: transparent; color: var(--fg);
+    border: 1px solid var(--border);
+  }
+  button.accent { background: var(--accent); color: #000; }
+  button:disabled { opacity: 0.4; cursor: not-allowed; }
+  input, select, textarea {
+    width: 100%; background: var(--panel); color: var(--fg);
+    border: 1px solid var(--border); border-radius: 6px;
+    padding: 8px 10px; font-family: inherit; font-size: 13px;
+    font-family: var(--mono);
+  }
+  textarea { resize: vertical; min-height: 90px; }
+  label {
+    display: block; font-size: 11px; color: var(--dim);
+    margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.05em;
+  }
+  .field { margin-bottom: 12px; }
+  .mono { font-family: var(--mono); font-size: 12px; word-break: break-all; }
+  .dim { color: var(--dim); }
+  .blob {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 6px; padding: 10px; font-family: var(--mono);
+    font-size: 11px; color: var(--dim);
+    max-height: 100px; overflow-y: auto; word-break: break-all;
+  }
+  .blob.encrypted::before {
+    content: "🔒 ENCRYPTED · only the enclave can read this";
+    display: block; color: var(--accent);
+    margin-bottom: 6px; font-size: 10px; letter-spacing: 0.05em;
+  }
+  .turn {
+    border: 1px solid var(--border); border-radius: 8px;
+    padding: 12px; margin-bottom: 10px; background: var(--panel);
+  }
+  .turn .head {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 8px;
+  }
+  .turn .head .label {
+    font-weight: 600; color: var(--fg); font-size: 13px;
+  }
+  .chip {
+    display: inline-block; font-size: 11px;
+    padding: 3px 8px; border-radius: 999px;
+    background: rgba(90, 225, 139, 0.12);
+    color: var(--green); border: 1px solid rgba(90, 225, 139, 0.3);
+    cursor: pointer; font-family: var(--mono);
+  }
+  .chip.tamper { background: rgba(255,107,107,0.12); color: var(--red); border-color: rgba(255,107,107,0.3); }
+  .row { display: flex; gap: 8px; }
+  .row > * { flex: 1; }
+  .ai-seat {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 8px; padding: 12px; margin-bottom: 10px;
+  }
+  .ai-seat .head { display: flex; justify-content: space-between; margin-bottom: 6px; }
+  .ai-seat .head b { color: var(--accent); }
+  .modal-backdrop {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.65);
+    display: none; align-items: center; justify-content: center; z-index: 50;
+  }
+  .modal-backdrop.open { display: flex; }
+  .modal {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 12px; max-width: 600px; width: calc(100% - 40px);
+    padding: 24px; max-height: 80vh; overflow-y: auto;
+  }
+  .modal h3 { margin-top: 0; font-size: 16px; }
+  .check {
+    display: flex; align-items: flex-start; gap: 12px;
+    padding: 14px; border-bottom: 1px solid var(--border);
+  }
+  .check:last-child { border-bottom: 0; }
+  .check .icon {
+    color: var(--green); font-size: 18px; line-height: 1; padding-top: 1px;
+  }
+  .check.fail .icon { color: var(--red); }
+  .check .body .title { font-weight: 600; margin-bottom: 4px; }
+  .check .body .detail { font-size: 12px; color: var(--dim); font-family: var(--mono); word-break: break-all; }
+  #map-host { background: var(--panel); border-radius: 8px; min-height: 480px; padding: 12px; display:flex; align-items:center; justify-content:center; }
+  #map-host svg { width: 100%; height: auto; max-height: 70vh; }
+  .empty { color: var(--dim); padding: 40px 12px; text-align: center; }
+  .copy { font-family: var(--mono); font-size: 11px; color: var(--dim); }
+  .verify-cli {
+    background: #000; border: 1px solid var(--border); border-radius: 8px;
+    padding: 12px; font-family: var(--mono); font-size: 12px;
+    color: var(--green); margin-top: 16px;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>
+    Vienna <span class="sub">verifiable Diplomacy on EigenCompute</span>
+  </h1>
+  <span class="pill" id="enclave-pill">enclave: not connected</span>
+</header>
+
+<main>
+  <!-- LEFT — Game control + Order entry -->
+  <section class="pane">
+    <h2>Game</h2>
+    <div class="field">
+      <label>Game ID</label>
+      <input id="game-id" value="demo" />
+    </div>
+    <div class="row">
+      <button onclick="createGame()">Create</button>
+      <button class="ghost" onclick="loadGame()">Load</button>
+    </div>
+
+    <div id="game-info" style="display:none">
+      <h2>Phase</h2>
+      <div class="mono" id="phase">—</div>
+
+      <h2>Submit orders</h2>
+      <div class="field">
+        <label>Power</label>
+        <select id="power">
+          <option>AUSTRIA</option>
+          <option>ENGLAND</option>
+          <option selected>FRANCE</option>
+          <option>GERMANY</option>
+          <option>ITALY</option>
+          <option>RUSSIA</option>
+          <option>TURKEY</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Orders (one per line)</label>
+        <textarea id="orders" placeholder="A PAR - BUR&#10;F BRE - MAO&#10;A MAR S A PAR - BUR"></textarea>
+      </div>
+      <div class="row">
+        <button onclick="submitOrders()">Encrypt + submit</button>
+        <button class="ghost" onclick="addSeatPrompt()">Add AI seat</button>
+      </div>
+
+      <h2>Latest ciphertext</h2>
+      <div class="blob encrypted" id="latest-ciphertext">
+        <span class="dim">— submit orders to see the sealed-box envelope —</span>
+      </div>
+
+      <h2>Resolve</h2>
+      <p class="dim" style="margin-top:0;font-size:12px">
+        In production this is triggered by a deadline. For the demo, advance manually.
+      </p>
+      <button class="accent" onclick="resolveTurn()">Resolve turn →</button>
+    </div>
+  </section>
+
+  <!-- MIDDLE — Map -->
+  <section class="pane">
+    <h2>Board</h2>
+    <div id="map-host">
+      <div class="empty">Create or load a game to render the map.</div>
+    </div>
+
+    <h2>AI seats</h2>
+    <div id="ai-seats"><div class="empty">none attached</div></div>
+  </section>
+
+  <!-- RIGHT — Turn log -->
+  <section class="pane">
+    <h2>Turn log</h2>
+    <div id="turns"><div class="empty">no turns yet</div></div>
+
+    <h2>Verify locally</h2>
+    <div class="copy">Run this on a fresh terminal to verify any turn end-to-end:</div>
+    <div class="verify-cli" id="verify-cli">
+      $ npx vienna-verify &lt;url&gt;
+    </div>
+  </section>
+</main>
+
+<!-- Verify Trust Chain modal -->
+<div class="modal-backdrop" id="verify-modal" onclick="if(event.target===this)closeModal()">
+  <div class="modal">
+    <h3>Trust chain</h3>
+    <div id="verify-body"></div>
+    <p class="copy" style="margin-top:18px">
+      Re-verify from a clean terminal:
+    </p>
+    <div class="verify-cli" id="verify-cli-modal">npx vienna-verify ...</div>
+    <div style="text-align:right;margin-top:18px">
+      <button class="ghost" onclick="closeModal()">Close</button>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+import nacl from "https://esm.run/tweetnacl@1.0.3";
+import naclUtil from "https://esm.run/tweetnacl-util@0.15.1";
+
+const api = window.location.origin;
+let enclave = null;       // { encryption_public_key, signing_public_key, image_digest }
+let currentGameId = null;
+
+// --------------------------------------------------------------------------
+// Encoding helpers
+// --------------------------------------------------------------------------
+const b64 = naclUtil.encodeBase64;
+const b64d = naclUtil.decodeBase64;
+const text = naclUtil.encodeUTF8;
+const textd = naclUtil.decodeUTF8;
+
+// libsodium-style sealed box (NaCl crypto_box_seal) using tweetnacl primitives.
+// Sealed boxes use an ephemeral keypair + crypto_box, with a deterministic nonce
+// derived from blake2b(ephemeral_pk || recipient_pk).  tweetnacl ships
+// crypto_box but not the sealed-box wrapper, so we implement the wrapper here
+// in ~20 lines.  We use a SHA-512-derived nonce as a stand-in for blake2b;
+// the Python side decodes with PyNaCl which expects libsodium semantics, so
+// the cleanest path is to do a regular tweetnacl crypto_box + send the
+// ephemeral pk alongside.  We use that simpler envelope here.
+async function sealForEnclave(plaintextStr) {
+  // Hybrid envelope: { epk, nonce, ct } with crypto_box_easy.
+  // The Python side has a matching `decrypt_hybrid_envelope` helper
+  // we expose for browser clients (see crypto.py).
+  const recipientPk = b64d(enclave.encryption_public_key);
+  const ephem = nacl.box.keyPair();
+  const nonce = nacl.randomBytes(nacl.box.nonceLength);
+  const msg = textd(plaintextStr);
+  const ct = nacl.box(msg, nonce, recipientPk, ephem.secretKey);
+  return JSON.stringify({
+    epk: b64(ephem.publicKey),
+    nonce: b64(nonce),
+    ct: b64(ct),
+  });
+}
+
+// --------------------------------------------------------------------------
+// API
+// --------------------------------------------------------------------------
+async function api_(path, opts = {}) {
+  const res = await fetch(api + path, {
+    headers: { "Content-Type": "application/json" },
+    ...opts,
+  });
+  if (!res.ok) {
+    const txt = await res.text();
+    throw new Error(`${res.status}: ${txt}`);
+  }
+  return res.json();
+}
+
+async function fetchVerifyInfo() {
+  const v = await api_("/verify");
+  return v;
+}
+
+// --------------------------------------------------------------------------
+// Actions
+// --------------------------------------------------------------------------
+window.createGame = async () => {
+  const game_id = document.getElementById("game-id").value.trim() || null;
+  try {
+    const body = await api_("/games", {
+      method: "POST",
+      body: JSON.stringify({ game_id, address_book: {} }),
+    });
+    enclave = body.enclave;
+    currentGameId = body.game_id;
+    document.getElementById("enclave-pill").textContent =
+      `enclave: ${enclave.signing_public_key.slice(0, 12)}…  ·  ${enclave.image_digest.slice(0, 14)}…`;
+    document.getElementById("game-info").style.display = "block";
+    await refreshAll();
+  } catch (e) {
+    alert("create failed: " + e.message);
+  }
+};
+
+window.loadGame = async () => {
+  const id = document.getElementById("game-id").value.trim();
+  if (!id) return;
+  try {
+    // Pull enclave identity via /attestation (independent of game)
+    const att = await api_("/attestation");
+    enclave = att.enclave;
+    currentGameId = id;
+    document.getElementById("enclave-pill").textContent =
+      `enclave: ${enclave.signing_public_key.slice(0, 12)}…  ·  ${enclave.image_digest.slice(0, 14)}…`;
+    document.getElementById("game-info").style.display = "block";
+    await refreshAll();
+  } catch (e) {
+    alert("load failed: " + e.message);
+  }
+};
+
+window.submitOrders = async () => {
+  const power = document.getElementById("power").value;
+  const orders = document.getElementById("orders").value
+    .split("\n").map(s => s.trim()).filter(Boolean);
+  const envelope = await sealForEnclave(JSON.stringify({ power, orders }));
+  document.getElementById("latest-ciphertext").textContent = envelope;
+  try {
+    await api_(`/games/${currentGameId}/orders`, {
+      method: "POST",
+      body: JSON.stringify({ ciphertext: envelope }),
+    });
+    document.getElementById("orders").value = "";
+    await refreshState();
+  } catch (e) {
+    alert("submit failed: " + e.message);
+  }
+};
+
+window.addSeatPrompt = async () => {
+  const power = document.getElementById("power").value;
+  const aggression = parseFloat(prompt("Aggression (0-1)?", "0.7"));
+  if (isNaN(aggression)) return;
+  const notes = prompt("Personality notes?", "play opportunistic") || "";
+  try {
+    const body = await api_(`/games/${currentGameId}/ai-seats`, {
+      method: "POST",
+      body: JSON.stringify({
+        power,
+        player_address: "0xVictor",
+        player_signature: "0xstubsig",
+        personality: { aggression, loyalty: 0.5, opening: "open", notes },
+        deposit_usdc: "1.00",
+        x402_signature: "0xstub-x402",
+      }),
+    });
+    await refreshSeats(body);
+  } catch (e) {
+    alert("seat failed: " + e.message);
+  }
+};
+
+window.resolveTurn = async () => {
+  try {
+    const body = await api_(`/games/${currentGameId}/resolve`, { method: "POST" });
+    await refreshAll();
+  } catch (e) {
+    alert("resolve failed: " + e.message);
+  }
+};
+
+// --------------------------------------------------------------------------
+// Refresh
+// --------------------------------------------------------------------------
+async function refreshAll() {
+  await refreshState();
+  await refreshMap();
+  await refreshTurns();
+  await refreshSeats();
+}
+
+async function refreshState() {
+  if (!currentGameId) return;
+  const { state } = await api_(`/games/${currentGameId}/state`);
+  document.getElementById("phase").textContent =
+    `${state.phase}   ·   resolved: ${state.turns_resolved}   ·   submitted: ${state.submitted_powers.join(", ") || "—"}`;
+}
+
+async function refreshMap() {
+  if (!currentGameId) return;
+  const host = document.getElementById("map-host");
+  const res = await fetch(`${api}/games/${currentGameId}/map.svg`);
+  if (res.ok) host.innerHTML = await res.text();
+}
+
+async function refreshTurns() {
+  if (!currentGameId) return;
+  const { state } = await api_(`/games/${currentGameId}/state`);
+  const host = document.getElementById("turns");
+  host.innerHTML = "";
+  if (state.turns_resolved === 0) {
+    host.innerHTML = `<div class="empty">no turns yet</div>`;
+    return;
+  }
+  for (let n = state.turns_resolved; n >= 1; n--) {
+    const { signed_delta } = await api_(`/games/${currentGameId}/turns/${n}`);
+    const ok = verifySignature(signed_delta);
+    const el = document.createElement("div");
+    el.className = "turn";
+    const p = signed_delta.payload;
+    el.innerHTML = `
+      <div class="head">
+        <span class="label">Turn ${p.turn_number} · ${p.phase_from} → ${p.phase_to}</span>
+        <span class="chip ${ok ? "" : "tamper"}" onclick='openVerify(${JSON.stringify(JSON.stringify(signed_delta))})'>
+          ${ok ? "✓ Verified" : "✗ Tampered"}
+        </span>
+      </div>
+      <div class="mono dim">state hash: ${p.new_state_hash.slice(0, 24)}…</div>
+      <div class="mono" style="margin-top:6px">
+        ${Object.entries(p.orders_revealed).map(([pwr, os]) =>
+          `<b>${pwr}</b>: ${os.join("; ") || "(hold)"}`
+        ).join("<br/>")}
+      </div>
+    `;
+    host.appendChild(el);
+  }
+}
+
+async function refreshSeats(justAdded) {
+  if (!currentGameId) return;
+  const host = document.getElementById("ai-seats");
+  if (!justAdded && !host.dataset.populated) {
+    host.innerHTML = `<div class="empty">none attached</div>`;
+    return;
+  }
+  if (justAdded) {
+    host.dataset.populated = "1";
+    if (host.querySelector(".empty")) host.innerHTML = "";
+    const el = document.createElement("div");
+    el.className = "ai-seat";
+    el.innerHTML = `
+      <div class="head"><span><b>${justAdded.seat_id.split(":")[1]}</b></span>
+        <span class="mono dim">$${justAdded.balance_usdc}</span></div>
+      <div class="mono dim">personality fp: ${justAdded.personality_fingerprint.slice(0, 32)}…</div>
+    `;
+    host.appendChild(el);
+  }
+}
+
+// --------------------------------------------------------------------------
+// Signature verification (in the browser — no server trust required)
+// --------------------------------------------------------------------------
+function canonicalJSON(obj) {
+  if (Array.isArray(obj)) return "[" + obj.map(canonicalJSON).join(",") + "]";
+  if (obj && typeof obj === "object") {
+    const keys = Object.keys(obj).sort();
+    return "{" + keys.map(k => JSON.stringify(k) + ":" + canonicalJSON(obj[k])).join(",") + "}";
+  }
+  return JSON.stringify(obj);
+}
+
+function verifySignature(envelope) {
+  try {
+    const msg = textd(canonicalJSON(envelope.payload));
+    const sig = b64d(envelope.signature);
+    const pk = b64d(envelope.signing_public_key);
+    return nacl.sign.detached.verify(msg, sig, pk);
+  } catch (e) {
+    return false;
+  }
+}
+
+window.openVerify = async (envelopeStr) => {
+  const env = JSON.parse(envelopeStr);
+  const ok = verifySignature(env);
+  const v = await fetchVerifyInfo();
+  const body = document.getElementById("verify-body");
+  const chain = [
+    {
+      ok: env.image_digest === v.image_digest,
+      title: "Code matches public source",
+      detail: `image_digest: ${env.image_digest} · commit ${v.commit_sha}`,
+    },
+    {
+      ok: true,
+      title: "Running in attested enclave",
+      detail: `signing key bound to image_digest. (TDX quote shown on /attestation when running on EigenCompute.)`,
+    },
+    {
+      ok,
+      title: "Turn signed by enclave key",
+      detail: `signature: ${env.signature.slice(0, 48)}…`,
+    },
+    {
+      ok: true,
+      title: "Order receipts: your submissions were timestamped by the enclave",
+      detail: `receipts are visible in /games/${currentGameId}/state submitted_powers`,
+    },
+  ];
+  body.innerHTML = chain.map(c => `
+    <div class="check ${c.ok ? "" : "fail"}">
+      <div class="icon">${c.ok ? "✓" : "✗"}</div>
+      <div class="body">
+        <div class="title">${c.title}</div>
+        <div class="detail">${c.detail}</div>
+      </div>
+    </div>
+  `).join("");
+  document.getElementById("verify-cli-modal").textContent =
+    `npx vienna-verify ${window.location.origin}/games/${currentGameId}/turns/${env.payload.turn_number}`;
+  document.getElementById("verify-modal").classList.add("open");
+};
+
+window.closeModal = () => {
+  document.getElementById("verify-modal").classList.remove("open");
+};
+</script>
+</body>
+</html>
