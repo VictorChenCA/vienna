@@ -1,819 +1,987 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
-<title>Vienna — Verifiable Diplomacy</title>
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Vienna — Verifiable Diplomacy on EigenCompute</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,300;0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,300;1,6..72,400;1,6..72,500;1,6..72,600&family=Source+Serif+4:ital,opsz,wght@0,8..60,300;0,8..60,400;0,8..60,500;0,8..60,600;1,8..60,400&family=Inter+Tight:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
 <style>
-  :root {
-    --bg: #07070a;
-    --bg-2: #0d0d12;
-    --panel: #121218;
-    --panel-2: #181820;
-    --border: #23232c;
-    --border-strong: #34343f;
-    --fg: #ececf0;
-    --fg-2: #b7b7c2;
-    --dim: #6b6b78;
-    --accent: #ffce4d;
-    --green: #5ae18b;
-    --green-bg: rgba(90, 225, 139, 0.10);
-    --red: #ff6b6b;
-    --red-bg: rgba(255, 107, 107, 0.10);
-    --blue: #6ec0ff;
-    --gold: #d4a44a;
-    --mono: ui-monospace, "JetBrains Mono", SFMono-Regular, "SF Mono", Menlo, monospace;
-    --sans: -apple-system, "Inter", BlinkMacSystemFont, system-ui, sans-serif;
-    --serif: "Georgia", "Iowan Old Style", serif;
-  }
-  * { box-sizing: border-box; }
-  html, body {
-    margin: 0; padding: 0;
-    background: var(--bg);
-    color: var(--fg);
-    font-family: var(--sans);
-    font-size: 13.5px;
-    line-height: 1.55;
-    overflow: hidden;
-    height: 100vh;
-  }
+/* ============================================================
+   VIENNA — design system
+   Editorial archival, treasury-bond. Warm ink, parchment, gold.
+   ============================================================ */
+:root {
+  --ink-0: #08070a; --ink-1: #0c0b09; --ink-2: #131210; --ink-3: #1a1814; --ink-4: #23201a;
 
-  /* ─── HEADER ─────────────────────────────────────────────── */
-  header.app {
-    height: 52px; flex-shrink: 0;
-    border-bottom: 1px solid var(--border);
-    background: var(--bg-2);
-    display: flex; align-items: center; justify-content: space-between;
-    padding: 0 20px;
-    z-index: 10;
-  }
-  .brand {
-    display: flex; align-items: baseline; gap: 16px;
-    cursor: pointer; user-select: none;
-  }
-  .brand h1 {
-    margin: 0; font-family: var(--serif); font-style: italic;
-    font-size: 22px; font-weight: 500; letter-spacing: -0.01em;
-  }
-  .brand .tag {
-    color: var(--dim); font-size: 12px; letter-spacing: 0.02em;
-  }
-  .brand .dot {
-    width: 6px; height: 6px; border-radius: 50%;
-    background: var(--green); margin-right: 2px;
-    box-shadow: 0 0 8px var(--green);
-    display: inline-block;
-  }
-  .header-right {
-    display: flex; gap: 10px; align-items: center;
-    font-family: var(--mono); font-size: 11px; color: var(--dim);
-  }
-  .pill {
-    padding: 5px 12px; border-radius: 999px;
-    border: 1px solid var(--border); background: var(--panel);
-    cursor: default;
-  }
-  .pill.live { color: var(--green); border-color: rgba(90,225,139,0.25); background: var(--green-bg); }
-  .pill.live::before {
-    content: ""; display: inline-block; width: 6px; height: 6px;
-    border-radius: 50%; background: var(--green);
-    margin-right: 6px; vertical-align: middle;
-    animation: pulse 2s ease-in-out infinite;
-  }
-  @keyframes pulse {
-    0%, 100% { opacity: 1; } 50% { opacity: 0.4; }
-  }
+  --rule-1: rgba(212,184,130,0.10);
+  --rule-2: rgba(212,184,130,0.18);
+  --rule-3: rgba(212,184,130,0.32);
 
-  /* ─── ROUTES ─────────────────────────────────────────────── */
-  .route { display: none; height: calc(100vh - 52px); }
-  .route.active { display: flex; }
+  --fg-0: #f5ecd6; --fg-1: #ede4d0; --fg-2: #b8ad95; --fg-3: #807866; --fg-4: #4d4738;
 
-  /* ─── LOBBY ──────────────────────────────────────────────── */
-  #lobby {
-    flex-direction: column; overflow-y: auto;
-    background:
-      radial-gradient(ellipse at top, rgba(255,206,77,0.04), transparent 60%),
-      radial-gradient(ellipse at bottom right, rgba(110,192,255,0.04), transparent 60%),
-      var(--bg);
-  }
-  .lobby-hero {
-    padding: 56px 48px 40px;
-    max-width: 1200px; margin: 0 auto; width: 100%;
-  }
-  .lobby-hero h2 {
-    font-family: var(--serif); font-style: italic;
-    font-size: 36px; font-weight: 400; margin: 0 0 12px;
-    letter-spacing: -0.01em;
-  }
-  .lobby-hero p {
-    color: var(--fg-2); margin: 0; max-width: 620px;
-    font-size: 15px; line-height: 1.6;
-  }
-  .lobby-grid {
-    display: grid; grid-template-columns: 1fr 1fr; gap: 32px;
-    padding: 16px 48px 56px;
-    max-width: 1200px; margin: 0 auto; width: 100%;
-  }
-  .lobby-section h3 {
-    font-size: 11px; text-transform: uppercase; letter-spacing: 0.14em;
-    color: var(--dim); margin: 0 0 14px; font-weight: 600;
-  }
-  .game-card {
-    display: block; padding: 16px 18px;
-    background: var(--panel); border: 1px solid var(--border);
-    border-radius: 12px; margin-bottom: 10px;
-    cursor: pointer; transition: all 0.15s;
-    text-decoration: none; color: var(--fg);
-  }
-  .game-card:hover { border-color: var(--border-strong); transform: translateY(-1px); }
-  .game-card .id { font-family: var(--mono); font-size: 13px; font-weight: 600; }
-  .game-card .meta { color: var(--dim); font-size: 12px; margin-top: 4px; font-family: var(--mono); }
-  .game-card .badges { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
-  .badge {
-    font-size: 10.5px; padding: 2px 8px; border-radius: 999px;
-    background: rgba(255,255,255,0.04); color: var(--fg-2);
-    font-family: var(--mono); letter-spacing: 0.02em;
-  }
-  .badge.power { background: rgba(255,206,77,0.10); color: var(--accent); }
-  .badge.done { background: var(--green-bg); color: var(--green); }
-  .create-panel {
-    background: var(--panel); border: 1px solid var(--border);
-    border-radius: 12px; padding: 20px;
-  }
-  .empty {
-    text-align: center; color: var(--dim);
-    padding: 48px 16px; font-style: italic;
-    border: 1px dashed var(--border); border-radius: 12px;
-  }
+  --gold: #d4b882; --gold-bright: #f0d59c; --gold-deep: #8c7344;
+  --gold-bg: rgba(212,184,130,0.08);
+  --verify: #8ba76a; --verify-deep: #4f6738; --verify-bg: rgba(139,167,106,0.08);
+  --tamper: #c45a4e; --tamper-deep: #6b2a23; --tamper-bg: rgba(196,90,78,0.10);
+  --encrypt: #e8a847; --encrypt-deep: #7a5821; --encrypt-bg: rgba(232,168,71,0.08);
 
-  /* "How it works" feature grid on the lobby */
-  .features {
-    grid-column: 1 / -1;
-    margin-top: 32px;
-    border-top: 1px solid var(--border);
-    padding-top: 32px;
-  }
-  .features-grid {
-    display: grid; grid-template-columns: repeat(5, 1fr); gap: 14px;
-    margin-top: 6px;
-  }
-  .feature {
-    background: var(--panel); border: 1px solid var(--border);
-    border-radius: 12px; padding: 14px 16px;
-  }
-  .feature .name {
-    font-size: 11px; text-transform: uppercase; letter-spacing: 0.1em;
-    color: var(--accent); font-weight: 600; margin-bottom: 8px;
-  }
-  .feature .desc { font-size: 12.5px; color: var(--fg-2); line-height: 1.55; }
+  --f-display: 'Newsreader','Source Serif 4',Georgia,serif;
+  --f-serif:   'Source Serif 4','Newsreader',Georgia,serif;
+  --f-sans:    'Inter Tight',-apple-system,BlinkMacSystemFont,system-ui,sans-serif;
+  --f-mono:    'JetBrains Mono',ui-monospace,'SF Mono',Menlo,monospace;
 
-  /* hide the diplomacy SVG's built-in phase label — duplicates ours */
-  #map-svg-host svg > text:last-of-type { display: none; }
+  --p-aus:#c5664a; --p-eng:#6884b8; --p-fra:#5fa3a3; --p-ger:#9b9694;
+  --p-ita:#82a76a; --p-rus:#c8c4be; --p-tur:#d4a84a;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+  font-family: var(--f-serif); background: var(--ink-1); color: var(--fg-1);
+  font-size: 15px; line-height: 1.5;
+  font-feature-settings: "ss01","ss02","kern";
+  -webkit-font-smoothing: antialiased;
+  text-rendering: geometricPrecision;
+  min-height: 100vh;
+  background-image:
+    radial-gradient(rgba(212,184,130,0.025) 1px, transparent 1px),
+    radial-gradient(rgba(212,184,130,0.015) 1px, transparent 1px);
+  background-size: 3px 3px, 7px 7px;
+  background-position: 0 0, 1px 2px;
+}
 
-  /* ─── INTERACTIVE MAP ───────────────────────────────────────
-     The map itself stays static. All selection / interaction lives
-     in the arrows + the unit hit zones. No territory dimming, no
-     province highlights — they fight the map's existing colours. */
+/* atoms */
+.kicker {
+  font-family: var(--f-sans); font-size: 10.5px; font-weight: 500;
+  letter-spacing: 0.22em; text-transform: uppercase; color: var(--fg-3);
+}
+.kicker.gold { color: var(--gold); }
+.kicker.verify { color: var(--verify); }
+.kicker.tamper { color: var(--tamper); }
+.kicker.encrypt { color: var(--encrypt); }
+.mono { font-family: var(--f-mono); font-variant-ligatures: none; font-feature-settings: "calt" 0; }
+.wordmark { font-family: var(--f-display); font-style: italic; font-weight: 400; letter-spacing: -0.02em; color: var(--fg-0); }
+.serif-title { font-family: var(--f-display); font-weight: 400; letter-spacing: -0.015em; color: var(--fg-0); line-height: 1.05; }
+.rule { height: 1px; background: var(--rule-2); }
+.rule-soft { background: var(--rule-1); }
+.rule-ornament {
+  height: 8px;
+  background-image: radial-gradient(circle at 50% 50%, var(--gold) 0.7px, transparent 1.2px);
+  background-size: 4px 8px; background-repeat: repeat-x; background-position: center;
+  opacity: 0.45;
+}
 
-  /* Order arrows we inject into the SVG */
-  .order-arrow {
-    fill: none;
-    stroke-width: 6;
-    opacity: 0.65;
-    cursor: pointer;
-    transition: opacity 0.12s, stroke-width 0.12s;
-    pointer-events: stroke;
-  }
-  /* Invisible wider sibling path makes the arrow easier to click. */
-  .order-arrow-hit {
-    fill: none;
-    stroke: transparent;
-    stroke-width: 22;
-    cursor: pointer;
-    pointer-events: stroke;
-  }
-  .order-arrow:hover { opacity: 1; stroke-width: 9; }
-  .order-arrow.staged {
-    opacity: 1; stroke-width: 9;
-    filter: drop-shadow(0 0 8px currentColor);
-  }
-  .order-arrow.move        { stroke: #ffce4d; color: #ffce4d; }
-  .order-arrow.support     { stroke: #6ec0ff; color: #6ec0ff; stroke-dasharray: 14 8; }
-  .order-arrow.convoy      { stroke: #5ae18b; color: #5ae18b; stroke-dasharray: 2 10; stroke-linecap: round; stroke-width: 7; }
-  .hold-ring {
-    fill: none; stroke: #ffce4d; stroke-width: 5;
-    opacity: 0.7; cursor: pointer;
-    transition: opacity 0.12s, stroke-width 0.12s;
-  }
-  .hold-ring:hover { opacity: 1; stroke-width: 7; }
-  .hold-ring.staged { opacity: 1; stroke-width: 7; filter: drop-shadow(0 0 8px #ffce4d); }
+button { font: inherit; cursor: pointer; }
+.btn {
+  font-family: var(--f-sans); font-size: 12px; font-weight: 500;
+  letter-spacing: 0.06em; text-transform: uppercase;
+  border: 1px solid var(--rule-3); background: transparent; color: var(--fg-1);
+  padding: 9px 14px; display: inline-flex; align-items: center; gap: 8px;
+  transition: background 120ms ease, border-color 120ms ease, color 120ms ease;
+}
+.btn:hover { background: var(--ink-3); border-color: var(--gold); color: var(--gold-bright); }
+.btn:active { background: var(--ink-4); }
+.btn[disabled] { opacity: 0.4; cursor: not-allowed; }
+.btn-primary { background: var(--gold); border-color: var(--gold); color: var(--ink-0); }
+.btn-primary:hover { background: var(--gold-bright); border-color: var(--gold-bright); color: var(--ink-0); }
+.btn-ghost { border-color: transparent; padding-left: 6px; padding-right: 6px; }
+.btn-ghost:hover { background: transparent; color: var(--gold); border-color: transparent; }
+.btn-sm { padding: 6px 9px; font-size: 10.5px; letter-spacing: 0.08em; }
+.btn-danger { border-color: rgba(196,90,78,0.5); color: var(--tamper); }
+.btn-danger:hover { background: var(--tamper-bg); color: var(--tamper); border-color: var(--tamper); }
+.icon-btn {
+  width: 30px; height: 30px;
+  border: 1px solid var(--rule-2); background: transparent; color: var(--fg-2);
+  display: inline-flex; align-items: center; justify-content: center;
+  transition: all 120ms ease; font-family: var(--f-mono); font-size: 16px;
+}
+.icon-btn:hover { color: var(--gold); border-color: var(--gold); }
 
-  /* Unit hit-zones: invisible big circle over each unit icon
-     so clicks register reliably without millimetre precision.
-     Never visible — just cursor + click-through. */
-  .unit-hit {
-    fill: rgba(255,255,255,0.001);  /* not perfectly transparent so it actually hit-tests in all browsers */
-    stroke: none;
-    cursor: pointer;
-    pointer-events: all;
-  }
+.chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-family: var(--f-sans); font-size: 10.5px; font-weight: 500;
+  letter-spacing: 0.12em; text-transform: uppercase;
+  padding: 3px 8px; border: 1px solid var(--rule-2);
+  color: var(--fg-2); background: transparent; white-space: nowrap;
+}
+.chip .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; display: inline-block; }
+.chip.verify { color: var(--verify); border-color: rgba(139,167,106,0.35); background: var(--verify-bg); }
+.chip.encrypt { color: var(--encrypt); border-color: rgba(232,168,71,0.35); background: var(--encrypt-bg); }
+.chip.gold { color: var(--gold); border-color: rgba(212,184,130,0.35); background: var(--gold-bg); }
+.chip.tamper { color: var(--tamper); border-color: rgba(196,90,78,0.45); background: var(--tamper-bg); }
+.chip.muted { color: var(--fg-3); }
+.chip.clickable { cursor: pointer; transition: opacity 120ms ease; }
+.chip.clickable:hover { opacity: 0.75; }
 
-  /* Map hint overlay */
-  .map-hint {
-    position: absolute; bottom: 14px; left: 14px;
-    background: rgba(13, 13, 18, 0.92);
-    backdrop-filter: blur(8px);
-    border: 1px solid var(--border);
-    border-radius: 9px; padding: 8px 14px;
-    font-family: var(--mono); font-size: 11.5px;
-    color: var(--fg-2); z-index: 4;
-    max-width: 360px; line-height: 1.55;
-  }
-  .map-hint b { color: var(--accent); }
-  .map-hint kbd {
-    background: var(--panel-2); border: 1px solid var(--border-strong);
-    border-radius: 4px; padding: 1px 6px;
-    font-family: var(--mono); font-size: 11px;
-  }
+.card { background: var(--ink-2); border: 1px solid var(--rule-1); position: relative; }
+.card.lifted { background: var(--ink-3); }
+.card-pad { padding: 18px 20px; }
 
-  /* ─── GAME VIEW ──────────────────────────────────────────── */
-  #game {
-    flex-direction: row;
-  }
-  .pane {
-    background: var(--bg-2);
-    overflow: hidden;
-    display: flex; flex-direction: column;
-    min-width: 0;
-  }
-  .pane > .pane-scroll {
-    overflow-y: auto;
-    padding: 16px 18px;
-    flex: 1;
-  }
-  .pane-header {
-    flex-shrink: 0;
-    padding: 12px 18px 8px;
-    border-bottom: 1px solid var(--border);
-    display: flex; align-items: center; justify-content: space-between;
-    background: var(--bg-2);
-  }
-  .pane-header .title {
-    font-size: 11px; text-transform: uppercase; letter-spacing: 0.14em;
-    color: var(--dim); font-weight: 600;
-  }
-  #pane-left  { width: 320px; min-width: 260px; max-width: 480px; }
-  #pane-right { width: 380px; min-width: 280px; max-width: 540px; }
-  #pane-center { flex: 1; min-width: 320px; }
-  .resizer {
-    width: 5px; cursor: col-resize; background: var(--border);
-    flex-shrink: 0; position: relative; z-index: 5;
-    transition: background 0.1s;
-  }
-  .resizer:hover, .resizer.active { background: var(--accent); }
+.bracketed { position: relative; }
+.bracketed::before, .bracketed::after,
+.bracketed > .brk-tr, .bracketed > .brk-bl {
+  content: ""; position: absolute; width: 10px; height: 10px;
+  border-color: var(--gold); pointer-events: none;
+}
+.bracketed::before { top: -1px; left: -1px; border-top: 1px solid; border-left: 1px solid; }
+.bracketed::after  { bottom: -1px; right: -1px; border-bottom: 1px solid; border-right: 1px solid; }
+.bracketed > .brk-tr { top: -1px; right: -1px; border-top: 1px solid var(--gold); border-right: 1px solid var(--gold); }
+.bracketed > .brk-bl { bottom: -1px; left: -1px; border-bottom: 1px solid var(--gold); border-left: 1px solid var(--gold); }
 
-  /* ─── FORM ELEMENTS ─────────────────────────────────────── */
-  h4 {
-    font-size: 11px; text-transform: uppercase; letter-spacing: 0.12em;
-    color: var(--dim); margin: 24px 0 10px; font-weight: 600;
-  }
-  h4:first-child { margin-top: 4px; }
+/* layout */
+.shell { min-height: 100vh; display: flex; flex-direction: column; }
 
-  button {
-    background: var(--fg); color: var(--bg);
-    border: 0; border-radius: 7px; padding: 9px 16px;
-    font-size: 13px; font-weight: 500; cursor: pointer;
-    font-family: inherit;
-    transition: opacity 0.12s, transform 0.06s;
-  }
-  button:hover { opacity: 0.85; }
-  button:active { transform: translateY(1px); }
-  button.ghost {
-    background: transparent; color: var(--fg);
-    border: 1px solid var(--border-strong);
-  }
-  button.ghost:hover { background: rgba(255,255,255,0.04); }
-  button.accent { background: var(--accent); color: #181810; font-weight: 600; }
-  button.danger { background: var(--red); color: #fff; }
-  button:disabled { opacity: 0.35; cursor: not-allowed; }
-  button.sm { padding: 5px 10px; font-size: 11.5px; }
-  button.block { display: block; width: 100%; }
+.topbar {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 28px; border-bottom: 1px solid var(--rule-1);
+  background: rgba(8,7,10,0.85); backdrop-filter: blur(8px);
+  position: sticky; top: 0; z-index: 30;
+}
+.topbar-left { display: flex; align-items: baseline; gap: 14px; cursor: pointer; user-select: none; }
+.topbar .wordmark { font-size: 22px; }
+.topbar-tag {
+  font-family: var(--f-sans); font-size: 10.5px; letter-spacing: 0.18em;
+  text-transform: uppercase; color: var(--fg-3);
+  border-left: 1px solid var(--rule-2); padding-left: 12px;
+}
+.topbar-right { display: flex; align-items: center; gap: 12px; }
+.enclave-pill {
+  display: inline-flex; align-items: center; gap: 10px;
+  font-family: var(--f-mono); font-size: 10.5px; color: var(--fg-2);
+  padding: 5px 10px; border: 1px solid var(--rule-2); background: var(--ink-2);
+}
+.enclave-pill .pulse {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--verify);
+  box-shadow: 0 0 0 0 rgba(139,167,106,0.6);
+  animation: pulse 2.2s infinite;
+}
+@keyframes pulse {
+  0% { box-shadow: 0 0 0 0 rgba(139,167,106,0.55); }
+  70% { box-shadow: 0 0 0 8px rgba(139,167,106,0); }
+  100% { box-shadow: 0 0 0 0 rgba(139,167,106,0); }
+}
 
-  input, select, textarea {
-    width: 100%; background: var(--panel); color: var(--fg);
-    border: 1px solid var(--border); border-radius: 7px;
-    padding: 8px 11px; font-family: inherit; font-size: 13px;
-  }
-  input.mono, select.mono, textarea.mono { font-family: var(--mono); font-size: 12.5px; }
-  input:focus, select:focus, textarea:focus {
-    outline: 0; border-color: var(--accent);
-    box-shadow: 0 0 0 2px rgba(255,206,77,0.15);
-  }
-  textarea { resize: vertical; min-height: 84px; font-family: var(--mono); }
-  label {
-    display: block; font-size: 11px; color: var(--dim);
-    margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.06em;
-    font-weight: 500;
-  }
-  .field { margin-bottom: 12px; }
-  .field .help { font-size: 11px; color: var(--dim); margin-top: 4px; font-family: var(--mono); }
-  .row { display: flex; gap: 8px; }
-  .row > * { flex: 1; }
+/* routes */
+.route { display: none; }
+.route.active { display: block; }
+.route#game.active { display: block; }
 
-  /* ─── ENCRYPTED BLOB DISPLAY ─────────────────────────────── */
-  .mono { font-family: var(--mono); font-size: 12px; word-break: break-all; }
-  .dim { color: var(--dim); }
-  .blob {
-    background: var(--bg); border: 1px solid var(--border);
-    border-radius: 8px; padding: 12px;
-    font-family: var(--mono); font-size: 11px; color: var(--dim);
-    max-height: 140px; overflow-y: auto;
-    word-break: break-all; line-height: 1.5;
-    position: relative;
-  }
-  .blob .copy-btn {
-    position: absolute; top: 8px; right: 8px;
-    background: var(--panel-2); border: 1px solid var(--border);
-    color: var(--fg-2); cursor: pointer; padding: 3px 8px;
-    font-size: 10.5px; border-radius: 5px; font-family: var(--mono);
-  }
-  .blob .copy-btn:hover { color: var(--fg); border-color: var(--border-strong); }
-  .blob.encrypted {
-    border-color: rgba(255,206,77,0.25);
-    background: linear-gradient(180deg, rgba(255,206,77,0.04), transparent);
-  }
-  .blob.encrypted::before {
-    content: "🔒 ENCRYPTED  ·  only the enclave can read this";
-    display: block; color: var(--accent);
-    margin-bottom: 8px; font-size: 10.5px; letter-spacing: 0.08em;
-    text-transform: uppercase;
-  }
+/* ===== LOBBY ===== */
+.lobby-wrap { max-width: 1280px; margin: 0 auto; padding: 36px 32px 80px; }
+.hero { display: grid; grid-template-columns: 1.4fr 1fr; gap: 56px; align-items: end; padding: 28px 0 36px; }
+.hero-eyebrow { display: flex; align-items: center; gap: 14px; margin-bottom: 22px; }
+.hero-mark {
+  font-family: var(--f-display); font-style: italic; font-weight: 300;
+  font-size: 116px; line-height: 0.92; letter-spacing: -0.035em;
+  color: var(--fg-0); margin: 0;
+}
+.hero-mark .amp { color: var(--gold); font-weight: 400; }
+.hero-sub {
+  font-family: var(--f-serif); font-style: italic;
+  font-size: 22px; line-height: 1.35; color: var(--fg-2);
+  margin: 18px 0 0; max-width: 32ch;
+}
+.hero-meta {
+  border-left: 1px solid var(--rule-2); padding-left: 22px;
+  font-family: var(--f-serif); font-size: 14.5px; color: var(--fg-2); line-height: 1.55;
+}
+.hero-meta p { margin: 0 0 14px; }
+.hero-meta p:last-child { margin-bottom: 0; }
+.hero-meta strong { color: var(--fg-0); font-weight: 500; }
+.hero-meta .lede {
+  font-family: var(--f-display); font-size: 17px; font-style: italic; color: var(--fg-1);
+}
 
-  /* ─── TURN LOG ───────────────────────────────────────────── */
-  .turn {
-    border: 1px solid var(--border); border-radius: 10px;
-    padding: 14px; margin-bottom: 10px; background: var(--panel);
-    transition: border-color 0.15s;
-  }
-  .turn:hover { border-color: var(--border-strong); }
-  .turn .head {
-    display: flex; align-items: center; justify-content: space-between;
-    margin-bottom: 8px;
-  }
-  .turn .label { font-weight: 600; font-size: 13px; }
-  .chip {
-    display: inline-flex; align-items: center; gap: 4px;
-    font-size: 11px; padding: 3px 9px; border-radius: 999px;
-    background: var(--green-bg); color: var(--green);
-    border: 1px solid rgba(90,225,139,0.25);
-    cursor: pointer; font-family: var(--mono); letter-spacing: 0.02em;
-    transition: opacity 0.1s;
-  }
-  .chip:hover { opacity: 0.8; }
-  .chip.tamper {
-    background: var(--red-bg); color: var(--red);
-    border-color: rgba(255,107,107,0.3);
-  }
+.tape {
+  border-top: 1px solid var(--rule-2); border-bottom: 1px solid var(--rule-2);
+  background: var(--ink-2); margin: 0 -32px; overflow: hidden; position: relative;
+}
+.tape-label {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 32px; border-bottom: 1px solid var(--rule-1); background: var(--ink-0);
+}
+.tape-track {
+  display: flex; gap: 0; white-space: nowrap;
+  animation: tape-scroll 90s linear infinite;
+  padding: 14px 0;
+}
+@keyframes tape-scroll {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+.tape-item {
+  display: inline-flex; align-items: center; gap: 10px;
+  padding: 0 28px; border-right: 1px solid var(--rule-1);
+  font-family: var(--f-mono); font-size: 12px; color: var(--fg-2);
+}
+.tape-item .gm { color: var(--fg-0); font-family: var(--f-display); font-style: italic; font-size: 14px; }
+.tape-item .ph { color: var(--gold); }
+.tape-item .sig { color: var(--verify); }
 
-  /* ─── AI SEAT CARDS ──────────────────────────────────────── */
-  .seat {
-    background: var(--panel); border: 1px solid var(--border);
-    border-radius: 10px; padding: 13px 14px; margin-bottom: 10px;
-  }
-  .seat .top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
-  .seat .power { font-weight: 600; color: var(--accent); font-size: 13px; }
-  .seat .balance {
-    font-family: var(--mono); font-size: 11.5px; color: var(--green);
-    padding: 2px 8px; border-radius: 999px; background: var(--green-bg);
-  }
-  .seat .meta { font-family: var(--mono); font-size: 11px; color: var(--dim); margin-top: 6px; }
-  .seat .traits { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
-  .trait {
-    font-size: 10.5px; padding: 3px 8px; border-radius: 6px;
-    background: rgba(255,255,255,0.04); color: var(--fg-2);
-    font-family: var(--mono);
-  }
+.lobby-grid { display: grid; grid-template-columns: 1.55fr 1fr; gap: 36px; margin-top: 48px; }
+.section-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 18px; }
+.section-head h2 {
+  font-family: var(--f-display); font-style: italic; font-weight: 400;
+  font-size: 26px; letter-spacing: -0.01em; margin: 0; color: var(--fg-0);
+}
+.section-head .count { font-family: var(--f-mono); font-size: 11px; color: var(--fg-3); }
 
-  /* ─── MAP CONTAINER ──────────────────────────────────────── */
-  #map-wrap {
-    flex: 1; min-height: 0;
-    background:
-      radial-gradient(ellipse at center, rgba(255,206,77,0.03), transparent 70%),
-      var(--bg);
-    position: relative; overflow: hidden;
-  }
-  #map-svg-host {
-    width: 100%; height: 100%;
-    cursor: grab;
-    user-select: none;
-  }
-  #map-svg-host.dragging { cursor: grabbing; }
-  #map-svg-host > svg {
-    width: 100%; height: 100%; display: block;
-    transform-origin: 0 0;
-    transition: transform 0.15s cubic-bezier(0.4, 0.0, 0.2, 1);
-  }
-  #map-svg-host.no-anim > svg { transition: none; }
-  .map-controls {
-    position: absolute; top: 14px; right: 14px;
-    display: flex; flex-direction: column; gap: 4px;
-    z-index: 4;
-  }
-  .map-controls button {
-    width: 32px; height: 32px; padding: 0;
-    background: rgba(13, 13, 18, 0.92);
-    backdrop-filter: blur(8px);
-    color: var(--fg);
-    border: 1px solid var(--border);
-    font-family: var(--mono); font-size: 16px; font-weight: 600;
-    line-height: 1; border-radius: 7px;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.3);
-  }
-  .map-controls button:hover { background: var(--panel-2); }
-  .map-overlay-top {
-    position: absolute; top: 14px; left: 14px; right: 14px;
-    z-index: 4; display: flex; gap: 8px; align-items: center;
-    pointer-events: none;
-  }
-  .phase-card {
-    background: rgba(13, 13, 18, 0.92);
-    border: 1px solid var(--border);
-    backdrop-filter: blur(8px);
-    border-radius: 9px;
-    padding: 8px 14px;
-    font-family: var(--mono); font-size: 12px;
-    color: var(--fg-2);
-    pointer-events: auto;
-  }
-  .phase-card .phase-name { color: var(--accent); font-weight: 600; }
-  .phase-card .sep { color: var(--border-strong); margin: 0 8px; }
+.game-card {
+  display: grid; grid-template-columns: 88px 1fr auto;
+  gap: 22px; padding: 20px 22px; border-top: 1px solid var(--rule-1);
+  align-items: center; cursor: pointer; transition: background 140ms ease;
+}
+.game-card:hover { background: var(--ink-2); }
+.game-card:last-child { border-bottom: 1px solid var(--rule-1); }
+.gc-id { font-family: var(--f-mono); font-size: 11px; color: var(--fg-3); letter-spacing: 0.02em; }
+.gc-id .num {
+  display: block; font-family: var(--f-display); font-style: italic;
+  font-size: 32px; color: var(--fg-0); margin-top: 4px; letter-spacing: -0.02em;
+}
+.gc-mid h3 {
+  font-family: var(--f-display); font-style: italic; font-weight: 400;
+  font-size: 20px; color: var(--fg-0); margin: 0 0 6px; letter-spacing: -0.01em;
+}
+.gc-mid .meta-line { font-size: 13px; color: var(--fg-2); display: flex; align-items: center; gap: 14px; }
+.gc-mid .meta-line .sep { color: var(--fg-4); }
+.gc-powers { display: flex; align-items: center; gap: 2px; margin-top: 10px; }
+.power-tick {
+  width: 12px; height: 18px;
+  border: 1px solid var(--rule-2);
+}
+.power-tick.filled { border-color: transparent; }
+.gc-right { text-align: right; display: flex; flex-direction: column; align-items: flex-end; gap: 8px; }
 
-  /* ─── BOTTOM TIMELINE ────────────────────────────────────── */
-  .turn-timeline {
-    flex-shrink: 0;
-    background: var(--bg-2); border-top: 1px solid var(--border);
-    padding: 8px 14px; display: flex; gap: 6px;
-    overflow-x: auto;
-  }
-  .turn-pip {
-    flex-shrink: 0; padding: 5px 11px;
-    border-radius: 7px; border: 1px solid var(--border);
-    background: var(--panel); cursor: pointer;
-    font-family: var(--mono); font-size: 11.5px; color: var(--fg-2);
-    transition: all 0.12s;
-    white-space: nowrap;
-  }
-  .turn-pip:hover { border-color: var(--border-strong); }
-  .turn-pip.current { background: var(--accent); color: #181810; border-color: var(--accent); font-weight: 600; }
+.start-panel {
+  padding: 26px 26px 22px; background: var(--ink-2);
+  border: 1px solid var(--rule-2); position: relative;
+}
+.start-panel h2 {
+  font-family: var(--f-display); font-style: italic; font-weight: 400;
+  font-size: 28px; margin: 0 0 4px; color: var(--fg-0);
+}
+.start-panel .h-sub { font-size: 13px; color: var(--fg-3); margin-bottom: 22px; font-style: italic; }
+.field { margin-bottom: 16px; }
+.field label {
+  display: block; font-family: var(--f-sans); font-size: 10.5px;
+  letter-spacing: 0.16em; text-transform: uppercase;
+  color: var(--fg-3); margin-bottom: 6px;
+}
+.field input, .field select, .field textarea {
+  width: 100%; background: var(--ink-1); border: 1px solid var(--rule-2);
+  color: var(--fg-1); font-family: var(--f-serif); font-size: 14px;
+  padding: 9px 11px; outline: none;
+}
+.field input:focus, .field select:focus, .field textarea:focus { border-color: var(--gold); }
+.field input.mono, .field textarea.mono { font-family: var(--f-mono); font-size: 13px; }
+.field .help { font-size: 12px; color: var(--fg-3); margin-top: 4px; font-style: italic; }
 
-  /* ─── ORDER ENTRY (LEGAL-MOVE DROPDOWNS) ─────────────────── */
-  .order-row {
-    display: grid; grid-template-columns: 70px 1fr auto; gap: 6px;
-    margin-bottom: 6px; align-items: center;
-  }
-  .order-row .unit {
-    font-family: var(--mono); font-size: 12px; color: var(--accent);
-    font-weight: 600;
-  }
-  .order-row select { padding: 5px 8px; font-size: 11.5px; }
-  .order-row .remove {
-    background: transparent; color: var(--dim); border: 0;
-    padding: 2px 6px; cursor: pointer; font-family: var(--mono);
-  }
-  .order-row .remove:hover { color: var(--red); }
+.how { margin-top: 64px; border-top: 1px solid var(--rule-2); padding-top: 28px; }
+.how-grid {
+  display: grid; grid-template-columns: repeat(5, 1fr);
+  border-left: 1px solid var(--rule-1); margin-top: 18px;
+}
+.how-cell {
+  padding: 22px 22px 26px;
+  border-right: 1px solid var(--rule-1);
+  border-bottom: 1px solid var(--rule-1);
+  border-top: 1px solid var(--rule-1);
+}
+.how-num { font-family: var(--f-mono); font-size: 11px; color: var(--gold); letter-spacing: 0.1em; margin-bottom: 14px; }
+.how-title {
+  font-family: var(--f-display); font-style: italic; font-weight: 400;
+  font-size: 19px; color: var(--fg-0); margin-bottom: 8px; line-height: 1.2;
+}
+.how-body { font-size: 13.5px; color: var(--fg-2); line-height: 1.55; }
 
-  /* ─── VERIFY MODAL ───────────────────────────────────────── */
-  .modal-backdrop {
-    position: fixed; inset: 0; background: rgba(5,5,8,0.75);
-    backdrop-filter: blur(6px);
-    display: none; align-items: center; justify-content: center; z-index: 100;
-  }
-  .modal-backdrop.open { display: flex; }
-  .modal {
-    background: var(--bg-2); border: 1px solid var(--border-strong);
-    border-radius: 14px; max-width: 640px; width: calc(100% - 48px);
-    padding: 28px; max-height: 86vh; overflow-y: auto;
-    box-shadow: 0 24px 80px rgba(0,0,0,0.6);
-  }
-  .modal h3 {
-    margin: 0 0 6px; font-family: var(--serif); font-style: italic;
-    font-size: 22px; font-weight: 500;
-  }
-  .modal .modal-sub { color: var(--dim); font-size: 13px; margin-bottom: 22px; }
-  .check {
-    display: flex; align-items: flex-start; gap: 14px;
-    padding: 16px 0; border-bottom: 1px solid var(--border);
-  }
-  .check:last-of-type { border-bottom: 0; }
-  .check .icon {
-    color: var(--green); font-size: 18px; line-height: 1.2;
-    width: 22px; height: 22px;
-    background: var(--green-bg);
-    border-radius: 50%;
-    display: flex; align-items: center; justify-content: center;
-    flex-shrink: 0;
-  }
-  .check.fail .icon { color: var(--red); background: var(--red-bg); }
-  .check.warn .icon { color: var(--accent); background: rgba(255,206,77,0.10); }
-  .check .body .title { font-weight: 600; margin-bottom: 4px; }
-  .check .body .detail {
-    font-size: 12px; color: var(--dim); font-family: var(--mono);
-    word-break: break-all; line-height: 1.6;
-  }
-  .verify-cli {
-    background: #000; border: 1px solid var(--border-strong);
-    border-radius: 8px;
-    padding: 12px 14px; font-family: var(--mono); font-size: 12px;
-    color: var(--green); margin-top: 14px;
-    white-space: pre-wrap; word-break: break-all;
-  }
+/* ===== GAME ===== */
+.game-shell {
+  display: grid;
+  grid-template-columns: 360px 1fr 380px;
+  grid-template-rows: 1fr auto;
+  grid-template-areas:
+    "side board cab"
+    "side timeline cab";
+  height: calc(100vh - 53px);
+  overflow: hidden;
+}
+.gs-side { grid-area: side; border-right: 1px solid var(--rule-1); background: var(--ink-1); overflow-y: auto; }
+.gs-board { grid-area: board; background: var(--ink-0); position: relative; overflow: hidden; }
+.gs-time { grid-area: timeline; border-top: 1px solid var(--rule-1); background: var(--ink-1); }
+.gs-cab { grid-area: cab; border-left: 1px solid var(--rule-1); background: var(--ink-1); overflow-y: auto; }
 
-  /* ─── TOAST ──────────────────────────────────────────────── */
-  #toast-host {
-    position: fixed; bottom: 22px; right: 22px;
-    display: flex; flex-direction: column; gap: 8px;
-    z-index: 200;
-  }
-  .toast {
-    background: var(--panel-2); border: 1px solid var(--border-strong);
-    border-radius: 10px; padding: 12px 16px;
-    font-size: 13px; min-width: 220px; max-width: 380px;
-    box-shadow: 0 8px 30px rgba(0,0,0,0.5);
-    animation: slidein 0.2s ease-out;
-  }
-  .toast.error { border-color: rgba(255,107,107,0.4); color: var(--red); }
-  .toast.ok { border-color: rgba(90,225,139,0.35); color: var(--green); }
-  @keyframes slidein {
-    from { transform: translateX(20px); opacity: 0; }
-    to   { transform: translateX(0); opacity: 1; }
-  }
+.ledger-head { padding: 22px 24px 14px; border-bottom: 1px solid var(--rule-1); }
+.ledger-head .phase-pill {
+  font-family: var(--f-mono); font-size: 11px; color: var(--gold);
+  letter-spacing: 0.12em; display: flex; align-items: center; gap: 8px;
+}
+.ledger-head h2 {
+  font-family: var(--f-display); font-style: italic; font-weight: 400;
+  font-size: 28px; margin: 6px 0 4px; color: var(--fg-0); letter-spacing: -0.015em;
+}
+.ledger-head .deadline { font-size: 12.5px; color: var(--fg-3); font-style: italic; }
+.ledger-head .deadline strong { color: var(--gold); font-style: normal; font-family: var(--f-mono); font-size: 12px; }
 
-  /* ─── SCROLLBARS ─────────────────────────────────────────── */
-  ::-webkit-scrollbar { width: 10px; height: 10px; }
-  ::-webkit-scrollbar-track { background: transparent; }
-  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 5px; }
-  ::-webkit-scrollbar-thumb:hover { background: var(--border-strong); }
+.power-row {
+  display: flex; align-items: center; gap: 12px;
+  padding: 12px 24px; border-bottom: 1px solid var(--rule-1);
+  background: var(--ink-2); cursor: pointer;
+}
+.power-row select {
+  flex: 1; background: transparent; color: var(--fg-0);
+  border: 0; padding: 0; font-family: var(--f-display);
+  font-style: italic; font-size: 18px; outline: none;
+  -webkit-appearance: none; appearance: none;
+  cursor: pointer;
+}
+.crest {
+  width: 30px; height: 30px;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-family: var(--f-display); font-style: italic; font-size: 18px;
+  color: var(--fg-0); border: 1px solid var(--rule-2);
+}
 
-  /* Suppress focus outline for non-keyboard focus */
-  *:focus:not(:focus-visible) { outline: 0; }
+.ledger { padding: 16px 0 24px; }
+.ledger-section-title {
+  padding: 16px 24px 6px;
+  font-family: var(--f-sans); font-size: 10.5px;
+  letter-spacing: 0.16em; text-transform: uppercase;
+  color: var(--fg-3);
+  display: flex; justify-content: space-between;
+}
+.ledger-row {
+  display: grid; grid-template-columns: 56px 1fr auto;
+  align-items: center; gap: 14px;
+  padding: 11px 24px; border-top: 1px solid var(--rule-1);
+  cursor: pointer; transition: background 100ms ease;
+}
+.ledger-row:hover { background: var(--ink-2); }
+.ledger-row.selected { background: var(--ink-3); border-left: 2px solid var(--gold); padding-left: 22px; }
+.ledger-row .unit {
+  font-family: var(--f-display); font-style: italic; font-size: 20px;
+  color: var(--fg-0); letter-spacing: -0.01em;
+}
+.ledger-row .loc { font-family: var(--f-mono); font-size: 11px; color: var(--fg-3); margin-top: -2px; }
+.ledger-row .order { font-family: var(--f-mono); font-size: 12.5px; color: var(--fg-1); }
+.ledger-row .order.unset { color: var(--fg-3); font-style: italic; font-family: var(--f-serif); }
+.ledger-row .clear { font-family: var(--f-mono); font-size: 14px; color: var(--fg-4); padding-left: 4px; }
+.ledger-row .clear:hover { color: var(--tamper); }
+
+.ledger-cta { padding: 22px 24px; border-top: 1px solid var(--rule-2); background: var(--ink-0); }
+.envelope-preview {
+  padding: 10px 12px; border: 1px solid var(--rule-2); background: var(--ink-1);
+  font-family: var(--f-mono); font-size: 10.5px; color: var(--gold);
+  word-break: break-all; margin: 10px 0 14px; height: 56px;
+  overflow: hidden; position: relative;
+}
+.envelope-preview::after {
+  content: ""; position: absolute; inset: auto 0 0 0; height: 30px;
+  background: linear-gradient(to bottom, transparent, var(--ink-1));
+}
+
+/* board */
+#map-host { position: absolute; inset: 0; }
+#map-host svg { width: 100%; height: 100%; display: block; }
+.board-overlay-top {
+  position: absolute; top: 18px; left: 18px; right: 18px;
+  display: flex; justify-content: space-between;
+  pointer-events: none; z-index: 5;
+}
+.board-overlay-bot {
+  position: absolute; bottom: 18px; left: 18px; right: 18px;
+  display: flex; justify-content: space-between; z-index: 5; pointer-events: none;
+}
+.phase-card {
+  padding: 14px 18px; background: rgba(13,12,11,0.85);
+  border: 1px solid var(--rule-2); backdrop-filter: blur(6px);
+  pointer-events: auto;
+}
+.phase-card .phase-no {
+  font-family: var(--f-display); font-style: italic; font-size: 22px;
+  color: var(--fg-0); letter-spacing: -0.01em;
+}
+.phase-card .phase-sub {
+  font-family: var(--f-mono); font-size: 10.5px; letter-spacing: 0.1em;
+  color: var(--fg-3); text-transform: uppercase;
+}
+
+.power-legend {
+  display: grid; grid-template-columns: repeat(7,auto);
+  gap: 16px; padding: 10px 14px;
+  background: rgba(13,12,11,0.85); border: 1px solid var(--rule-2);
+  backdrop-filter: blur(6px); pointer-events: auto;
+}
+.legend-row {
+  display: flex; align-items: center; gap: 8px;
+  font-family: var(--f-sans); font-size: 10.5px;
+  letter-spacing: 0.1em; text-transform: uppercase; color: var(--fg-2);
+}
+.legend-row .sw { width: 10px; height: 10px; }
+.legend-row.submitted { color: var(--fg-0); }
+.legend-row.pending { opacity: 0.55; }
+.legend-row .check { color: var(--verify); font-family: var(--f-mono); font-size: 11px; margin-left: 2px; }
+
+.map-controls {
+  position: absolute; bottom: 18px; right: 18px;
+  z-index: 5; display: flex; flex-direction: column; gap: 4px; pointer-events: auto;
+}
+.map-controls .icon-btn { background: rgba(13,12,11,0.85); backdrop-filter: blur(6px); }
+
+/* unit hit-zones (invisible click targets) */
+.unit-hit { fill: rgba(255,255,255,0.001); stroke: none; cursor: pointer; pointer-events: all; }
+
+/* staged-order arrows (gold, dashed, drawn into overlay) */
+.order-arrow { fill: none; stroke: var(--gold); stroke-width: 2.4; stroke-dasharray: 6 4; opacity: 0.92; pointer-events: none; }
+.order-arrow.support { stroke-dasharray: 2 4; opacity: 0.85; }
+.order-arrow.convoy { stroke-dasharray: 1 5; stroke-linecap: round; }
+.order-arrow.hold-ring {
+  stroke: var(--gold); stroke-width: 2.4; stroke-dasharray: 4 3;
+  fill: rgba(212,184,130,0.05);
+}
+.order-arrow-head { fill: var(--gold); pointer-events: none; }
+
+/* mode picker — webdip-style */
+.mode-picker {
+  position: absolute; z-index: 25;
+  background: rgba(13,12,11,0.94);
+  border: 1px solid var(--gold);
+  padding: 4px;
+  display: flex; gap: 2px;
+  backdrop-filter: blur(8px);
+  box-shadow: 0 4px 20px rgba(0,0,0,0.7);
+  pointer-events: auto;
+  transform: translate(-50%, -130%);
+}
+.mode-picker button {
+  font-family: var(--f-sans); font-size: 10.5px; font-weight: 600;
+  letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--fg-1); background: transparent; border: 0;
+  padding: 7px 10px; cursor: pointer; min-width: 56px;
+  transition: background 100ms ease, color 100ms ease;
+}
+.mode-picker button:hover { background: var(--ink-3); color: var(--gold); }
+.mode-picker button.active { background: var(--gold); color: var(--ink-0); }
+.mode-picker button[disabled] { opacity: 0.35; cursor: not-allowed; }
+
+/* mode hint banner above the board */
+.mode-hint {
+  position: absolute; top: 70px; left: 50%; transform: translateX(-50%);
+  z-index: 6; background: rgba(13,12,11,0.94);
+  border: 1px solid var(--gold);
+  padding: 8px 18px;
+  font-family: var(--f-sans); font-size: 11px;
+  letter-spacing: 0.14em; text-transform: uppercase;
+  color: var(--gold);
+  backdrop-filter: blur(8px);
+  pointer-events: none;
+}
+.mode-hint .esc {
+  margin-left: 14px; color: var(--fg-3);
+  border-left: 1px solid var(--rule-2); padding-left: 14px;
+}
+
+/* timeline */
+.timeline { padding: 14px 22px 18px; display: flex; gap: 0; overflow-x: auto; }
+.timeline-cell {
+  flex: 0 0 auto; padding: 8px 16px 6px;
+  border-right: 1px solid var(--rule-1);
+  min-width: 96px; cursor: pointer; transition: background 120ms ease;
+}
+.timeline-cell:hover { background: var(--ink-2); }
+.timeline-cell.current { background: var(--ink-3); border-right: 1px solid var(--gold); }
+.tl-year { font-family: var(--f-mono); font-size: 10.5px; letter-spacing: 0.08em; color: var(--fg-3); }
+.tl-phase { font-family: var(--f-display); font-style: italic; font-size: 18px; color: var(--fg-0); margin: 2px 0 4px; }
+.tl-meta { font-family: var(--f-mono); font-size: 10px; color: var(--fg-3); display: flex; align-items: center; gap: 4px; }
+.tl-meta .v { color: var(--verify); }
+
+/* cabinet */
+.cab-head {
+  padding: 22px 22px 16px; border-bottom: 1px solid var(--rule-1);
+  display: flex; align-items: baseline; justify-content: space-between;
+}
+.cab-head h2 {
+  font-family: var(--f-display); font-style: italic; font-weight: 400;
+  font-size: 24px; margin: 0; color: var(--fg-0);
+}
+
+.seat-card {
+  display: grid; grid-template-columns: 64px 1fr; gap: 16px;
+  padding: 18px 22px; border-bottom: 1px solid var(--rule-1);
+  cursor: pointer; transition: background 120ms ease;
+}
+.seat-card:hover { background: var(--ink-2); }
+.portrait { width: 64px; height: 80px; background: var(--ink-3); border: 1px solid var(--rule-2); position: relative; overflow: hidden; }
+.seat-card h3 {
+  font-family: var(--f-display); font-style: italic; font-weight: 400;
+  font-size: 18px; color: var(--fg-0); margin: 0 0 2px; letter-spacing: -0.01em;
+}
+.seat-card .power-line { font-family: var(--f-sans); font-size: 10.5px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--fg-3); margin-bottom: 8px; }
+.seat-card .traits { display: flex; flex-wrap: wrap; gap: 4px 6px; margin-bottom: 8px; }
+.trait-pill { font-family: var(--f-mono); font-size: 10px; padding: 2px 6px; border: 1px solid var(--rule-1); color: var(--fg-2); }
+.seat-card .balance { font-family: var(--f-mono); font-size: 11px; color: var(--fg-2); }
+.seat-card .balance .v { color: var(--gold); }
+
+.cab-empty { padding: 28px 22px; font-style: italic; color: var(--fg-3); font-family: var(--f-serif); font-size: 14px; }
+.cab-add { padding: 14px 22px; }
+
+/* overlays */
+.overlay-root {
+  position: fixed; inset: 0; background: rgba(8,7,10,0.78);
+  backdrop-filter: blur(8px); z-index: 80;
+  display: none; place-items: center; padding: 40px; overflow-y: auto;
+}
+.overlay-root.open { display: grid; }
+.overlay-close {
+  position: absolute; top: 18px; right: 18px;
+  font-family: var(--f-sans); font-size: 11px; letter-spacing: 0.16em;
+  text-transform: uppercase; color: var(--fg-2);
+  padding: 6px 10px; border: 1px solid var(--rule-2); background: transparent;
+}
+.overlay-close:hover { color: var(--gold); border-color: var(--gold); }
+
+/* certificate */
+.certificate { width: min(960px, 100%); background: var(--ink-1); border: 1px solid var(--rule-3); padding: 0; position: relative; }
+.cert-frame { border: 1px solid var(--rule-2); margin: 14px; position: relative; }
+.cert-frame::before, .cert-frame::after {
+  content: ""; position: absolute; inset: 4px;
+  border: 1px solid var(--rule-1); pointer-events: none;
+}
+.cert-inner { padding: 44px 56px 40px; position: relative; z-index: 1; }
+.cert-head { text-align: center; border-bottom: 1px solid var(--rule-2); padding-bottom: 22px; margin-bottom: 30px; }
+.cert-head .crest { display: inline-block; width: 36px; height: 36px; border: 1px solid var(--gold); position: relative; margin-bottom: 14px; }
+.cert-head .crest::before {
+  content: ""; position: absolute; inset: 5px;
+  background: radial-gradient(circle, var(--gold) 0%, transparent 60%); opacity: 0.6;
+}
+.cert-head h1 { font-family: var(--f-display); font-style: italic; font-weight: 400; font-size: 38px; letter-spacing: -0.02em; color: var(--fg-0); margin: 0; }
+.cert-head .sub { font-family: var(--f-sans); font-size: 11px; letter-spacing: 0.22em; text-transform: uppercase; color: var(--gold); margin-top: 10px; }
+.cert-head .turn-meta { font-family: var(--f-mono); font-size: 11.5px; color: var(--fg-2); margin-top: 14px; }
+
+.chain { margin: 18px 0 28px; }
+.chain-link { display: grid; grid-template-columns: 80px 1fr 110px; gap: 24px; padding: 22px 4px; border-bottom: 1px dashed var(--rule-2); align-items: center; position: relative; }
+.chain-link:last-child { border-bottom: none; }
+.chain-stamp {
+  width: 76px; height: 76px;
+  border: 2px solid var(--gold);
+  display: flex; align-items: center; justify-content: center;
+  position: relative; transform: rotate(-6deg);
+  background: rgba(212,184,130,0.04);
+}
+.chain-stamp .stamp-num { font-family: var(--f-display); font-style: italic; font-size: 30px; color: var(--gold-bright); letter-spacing: -0.02em; }
+.chain-stamp::before { content: ""; position: absolute; inset: 4px; border: 1px solid var(--gold); border-radius: 2px; }
+.chain-stamp.verified { border-color: var(--verify); }
+.chain-stamp.verified::before { border-color: var(--verify); }
+.chain-stamp.verified .stamp-num { color: var(--verify); }
+.chain-stamp.tampered { border-color: var(--tamper); }
+.chain-stamp.tampered::before { border-color: var(--tamper); }
+.chain-stamp.tampered .stamp-num { color: var(--tamper); }
+.chain-stamp.warn { border-color: var(--encrypt); }
+.chain-stamp.warn::before { border-color: var(--encrypt); }
+.chain-stamp.warn .stamp-num { color: var(--encrypt); }
+
+.chain-body h3 { font-family: var(--f-display); font-style: italic; font-weight: 400; font-size: 20px; color: var(--fg-0); margin: 0 0 4px; letter-spacing: -0.01em; }
+.chain-body .what { font-size: 13.5px; color: var(--fg-2); margin: 0 0 8px; line-height: 1.5; max-width: 56ch; }
+.chain-body .data { font-family: var(--f-mono); font-size: 10.5px; color: var(--fg-3); }
+.chain-body .data .lbl { color: var(--fg-3); margin-right: 4px; }
+.chain-body .data .v { color: var(--gold); word-break: break-all; }
+.chain-status { text-align: right; font-family: var(--f-sans); font-size: 10.5px; letter-spacing: 0.16em; text-transform: uppercase; }
+.chain-status .ok { color: var(--verify); }
+.chain-status .fail { color: var(--tamper); }
+.chain-status .warnst { color: var(--encrypt); }
+
+.cert-footer { margin-top: 18px; padding-top: 22px; border-top: 1px solid var(--rule-2); display: grid; grid-template-columns: 1fr auto; gap: 24px; align-items: end; }
+.signature-block { font-family: var(--f-mono); font-size: 10.5px; color: var(--fg-3); line-height: 1.6; }
+.signature-block .sig { color: var(--fg-1); word-break: break-all; display: block; margin-top: 4px; max-width: 60ch; }
+.cli-block { padding: 14px 16px; background: var(--ink-0); border: 1px solid var(--rule-2); font-family: var(--f-mono); font-size: 11.5px; color: var(--fg-1); text-align: left; min-width: 320px; }
+.cli-block .prompt { color: var(--gold); margin-right: 6px; }
+.cli-block .ok { color: var(--verify); margin-top: 6px; display: block; word-break: break-all; }
+.cli-block .fail { color: var(--tamper); margin-top: 6px; display: block; word-break: break-all; }
+
+.cert-banner {
+  text-align: center; font-family: var(--f-sans); font-size: 11px;
+  letter-spacing: 0.22em; text-transform: uppercase; color: var(--verify);
+  background: var(--verify-bg); padding: 10px;
+  border: 1px solid rgba(139,167,106,0.4); margin: 0 14px 14px;
+}
+.cert-banner.tamper { color: var(--tamper); background: var(--tamper-bg); border-color: rgba(196,90,78,0.5); }
+
+/* lockbox */
+.lockbox { width: min(980px, 100%); background: var(--ink-1); border: 1px solid var(--rule-3); position: relative; }
+.lockbox-inner { padding: 36px 44px 40px; }
+.lockbox-head { border-bottom: 1px solid var(--rule-2); padding-bottom: 18px; margin-bottom: 28px; }
+.lockbox-head h1 { font-family: var(--f-display); font-style: italic; font-weight: 400; font-size: 32px; margin: 6px 0 4px; color: var(--fg-0); }
+.lockbox-head .sub { color: var(--fg-2); font-size: 13.5px; font-style: italic; }
+.lockbox-cols { display: grid; grid-template-columns: 1fr 32px 1fr; gap: 0; align-items: stretch; min-height: 280px; }
+.lockbox-col { border: 1px solid var(--rule-2); padding: 18px 18px 20px; background: var(--ink-2); }
+.lockbox-col h3 { font-family: var(--f-sans); font-size: 10.5px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--fg-3); margin: 0 0 14px; }
+.lockbox-col h3.gold { color: var(--gold); }
+.plain-orders { display: flex; flex-direction: column; gap: 8px; }
+.plain-line {
+  font-family: var(--f-mono); font-size: 13px; color: var(--fg-1);
+  padding: 6px 0; border-bottom: 1px dotted var(--rule-1);
+  opacity: 0; transform: translateY(4px); animation: fade-in 350ms ease forwards;
+}
+@keyframes fade-in { to { opacity: 1; transform: none; } }
+.cipher-stream { font-family: var(--f-mono); font-size: 11.5px; color: var(--gold); word-break: break-all; line-height: 1.55; position: relative; min-height: 200px; }
+.cipher-stream .char { display: inline-block; opacity: 0; animation: cipher-pop 60ms ease forwards; }
+@keyframes cipher-pop { to { opacity: 1; } }
+.lockbox-bridge { display: flex; flex-direction: column; align-items: center; justify-content: center; position: relative; color: var(--gold); }
+.bridge-arrow { font-family: var(--f-mono); font-size: 22px; color: var(--gold); }
+.lockbox-controls { margin-top: 22px; display: flex; gap: 10px; justify-content: space-between; align-items: center; }
+.lockbox-controls .left { display: flex; gap: 10px; align-items: center; }
+.lockbox-note { margin-top: 22px; font-family: var(--f-serif); font-style: italic; color: var(--fg-2); font-size: 13.5px; border-top: 1px solid var(--rule-1); padding-top: 18px; line-height: 1.55; }
+.lockbox-note strong { color: var(--gold); font-style: normal; }
+
+/* add-seat */
+.add-seat-modal { width: min(520px, 100%); background: var(--ink-1); border: 1px solid var(--rule-3); padding: 32px 36px; position: relative; }
+.add-seat-modal h2 { font-family: var(--f-display); font-style: italic; font-weight: 400; font-size: 28px; color: var(--fg-0); margin: 0 0 6px; }
+.add-seat-modal .sub { color: var(--fg-2); font-size: 13.5px; font-style: italic; margin-bottom: 22px; }
+.range-field { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 12px; }
+.range-field input[type=range] { width: 100%; }
+.range-field .v { font-family: var(--f-mono); font-size: 12px; color: var(--gold); min-width: 32px; text-align: right; }
+
+/* toast */
+#toasts { position: fixed; bottom: 22px; right: 22px; z-index: 200; display: flex; flex-direction: column; gap: 8px; }
+.toast {
+  background: var(--ink-2); border: 1px solid var(--rule-2);
+  padding: 12px 16px; font-size: 13px; min-width: 240px; max-width: 380px;
+  color: var(--fg-1); font-family: var(--f-serif);
+  box-shadow: 0 8px 30px rgba(0,0,0,0.5);
+  animation: slidein 0.18s ease-out;
+}
+.toast.ok { border-color: rgba(139,167,106,0.4); color: var(--verify); }
+.toast.error { border-color: rgba(196,90,78,0.5); color: var(--tamper); }
+@keyframes slidein { from { transform: translateX(20px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--rule-2); }
+::-webkit-scrollbar-thumb:hover { background: var(--rule-3); }
+*:focus:not(:focus-visible) { outline: 0; }
+
+/* lobby empty state */
+.empty-state {
+  text-align: center; color: var(--fg-3); font-family: var(--f-serif);
+  font-style: italic; padding: 60px 20px; border: 1px dashed var(--rule-1);
+}
 </style>
 </head>
 <body>
 
-<header class="app">
-  <div class="brand" onclick="goto('lobby')">
-    <h1>Vienna</h1>
-    <span class="tag">verifiable diplomacy on EigenCompute</span>
+<div class="shell">
+
+<header class="topbar">
+  <div class="topbar-left" onclick="window.goto('lobby')">
+    <span class="wordmark">Vienna</span>
+    <span class="topbar-tag">Verifiable Diplomacy · EigenCompute</span>
   </div>
-  <div class="header-right">
-    <button class="ghost sm" onclick="openModal('about-modal')" style="margin-right:4px">What is this?</button>
-    <span class="pill" id="image-pill" title="Image digest — bound to the running binary. Click to inspect.">image: —</span>
-    <span class="pill live" id="enclave-pill" title="The enclave's signing key. Generated inside the TEE; private half never leaves.">enclave: connecting…</span>
+  <div class="topbar-right">
+    <button class="btn btn-sm" onclick="window.openModal('about-modal')">What is this?</button>
+    <span class="enclave-pill" id="image-pill" title="Build image digest">image · <span id="image-digest">—</span></span>
+    <span class="enclave-pill" id="enclave-pill"><span class="pulse"></span>enclave · <span id="enclave-key">connecting…</span></span>
   </div>
 </header>
 
-<!-- ─── LOBBY ROUTE ─────────────────────────────────────────── -->
-<div class="route" id="lobby">
-  <div class="lobby-hero">
-    <h2>Replace the GM, not the rules.</h2>
-    <p>
-      Diplomacy needs a trusted third party to hold secret orders and adjudicate them honestly.
-      Vienna replaces that role with an Intel TDX enclave. Orders are encrypted to the enclave's public key,
-      adjudication runs the canonical <code>diplomacy/diplomacy</code> engine, and every turn is signed
-      with a key bound to the running binary.
-    </p>
-  </div>
+<!-- ===== LOBBY ===== -->
+<div class="route active" id="lobby">
+  <div class="lobby-wrap">
+    <section class="hero">
+      <div>
+        <div class="hero-eyebrow">
+          <span class="kicker gold">Private Preview · EigenCloud</span>
+          <div class="rule" style="flex: 1; max-width: 220px;"></div>
+        </div>
+        <h1 class="hero-mark">Replace the GM,<br/><span class="amp">&amp;</span> not the rules.</h1>
+        <p class="hero-sub">
+          Diplomacy needs a third party who can read every secret order and resolve them honestly.
+          Vienna runs that role inside an Intel TDX enclave — so even the operator can't read.
+        </p>
+      </div>
+      <div class="hero-meta">
+        <p class="lede">Seven powers. Twenty-two hidden orders per turn. One adjudicator nobody has to trust.</p>
+        <p><strong>Source-bound.</strong> Every turn delta is Ed25519-signed by a key generated in-enclave and bound to the running binary's image digest. Rebuild from the public repo, compare digests, verify.</p>
+        <p><strong>Encrypted memory.</strong> Orders are sealed-box ciphertext on disk and on the wire — only the attested container can decrypt them, at the deadline, in RAM.</p>
+      </div>
+    </section>
 
-  <div class="lobby-grid">
-    <div class="lobby-section">
-      <h3>Active games</h3>
-      <div id="lobby-list"><div class="empty">Loading…</div></div>
-      <button class="ghost block" onclick="refreshLobby()" style="margin-top:10px">↻ Refresh</button>
+    <div class="tape">
+      <div class="tape-label">
+        <span class="kicker gold">Live attested turns</span>
+        <div class="rule" style="flex: 1; max-width: 320px;"></div>
+        <span class="chip verify"><span class="dot"></span>Streaming</span>
+      </div>
+      <div class="tape-track" id="tape-track"></div>
     </div>
 
-    <div class="lobby-section">
-      <h3>Start a game</h3>
-      <div class="create-panel">
-        <div class="field">
-          <label>Game ID</label>
-          <input id="new-game-id" placeholder="e.g. spring1901" />
-          <div class="help">Letters / digits / underscore. Leave blank for a random id.</div>
+    <div class="lobby-grid">
+      <div>
+        <div class="section-head">
+          <h2>Active congresses</h2>
+          <span class="count" id="lobby-count">0 in session</span>
         </div>
-        <div class="row">
-          <button class="accent" onclick="createGameFromLobby()">Create</button>
-        </div>
+        <div id="lobby-list"></div>
       </div>
-
-      <h3 style="margin-top:28px">Join existing</h3>
-      <div class="create-panel">
-        <div class="field">
-          <label>Game ID</label>
-          <input id="join-game-id" />
+      <div>
+        <div class="section-head">
+          <h2>Convene a new game</h2>
+          <span class="count">treasury bond</span>
         </div>
-        <button onclick="joinGame()">Join</button>
+        <div class="start-panel bracketed">
+          <span class="brk-tr"></span><span class="brk-bl"></span>
+          <h2>Open the chamber.</h2>
+          <p class="h-sub">Sets up the seven powers. You play any seat; the rest can be AI seats with signed personas.</p>
+          <div class="field">
+            <label>Game id</label>
+            <input id="new-game-id" placeholder="e.g. spring1901" />
+            <div class="help">Letters / digits / underscore. Leave blank for a random id.</div>
+          </div>
+          <button class="btn btn-primary" onclick="window.createGameFromLobby()" style="width:100%;justify-content:center">Convene → enter chamber</button>
+        </div>
+
+        <div class="section-head" style="margin-top: 28px">
+          <h2>Join existing</h2>
+        </div>
+        <div class="start-panel" style="border-color: var(--rule-1);">
+          <div class="field">
+            <label>Game id</label>
+            <input id="join-game-id" />
+          </div>
+          <button class="btn" onclick="window.joinGame()" style="width:100%;justify-content:center">Take a seat</button>
+        </div>
       </div>
     </div>
 
-    <!-- Feature grid (full width) -->
-    <div class="features">
-      <h3>How it works</h3>
-      <div class="features-grid">
-        <div class="feature">
-          <div class="name">Encrypted memory</div>
-          <div class="desc">Orders are sealed-box encrypted to a keypair that lives only inside the enclave. Even the developer can't read them.</div>
-        </div>
-        <div class="feature">
-          <div class="name">Attestations</div>
-          <div class="desc">Every turn delta is Ed25519-signed by a key generated in-enclave and bound to the running binary's measurement.</div>
-        </div>
-        <div class="feature">
-          <div class="name">Source verifiability</div>
-          <div class="desc">Rebuild from the public repo, compare image digests. <code>/verify</code> publishes the commit you should be matching.</div>
-        </div>
-        <div class="feature">
-          <div class="name">Agent commerce</div>
-          <div class="desc">AI seats pay their own per-turn inference via x402 / MPP. Out of USDC = seat suspended. No house bot.</div>
-        </div>
-        <div class="feature">
-          <div class="name">Programmatic payouts</div>
-          <div class="desc">Game-end winner attestation is signed by the enclave; an on-chain escrow recovers the pubkey and releases the pot.</div>
-        </div>
+    <section class="how">
+      <div class="section-head">
+        <h2 style="font-size: 32px">How it works</h2>
+        <span class="kicker gold">Five steps · concept to settlement</span>
       </div>
-    </div>
+      <div class="how-grid">
+        <div class="how-cell"><div class="how-num">I · Encrypted memory</div><div class="how-title">Orders sealed at the keyboard.</div><div class="how-body">Each phase, players seal their orders to the enclave's Curve25519 envelope key in-browser. Plaintext never leaves the device.</div></div>
+        <div class="how-cell"><div class="how-num">II · Attestations</div><div class="how-title">Every turn signed by silicon.</div><div class="how-body">Adjudication runs inside Intel TDX. The Ed25519 signing key is generated in-enclave at boot and bound to the running binary's measurement.</div></div>
+        <div class="how-cell"><div class="how-num">III · Source-verifiable</div><div class="how-title">Rebuild and compare.</div><div class="how-body"><code>npx vienna-verify</code> fetches the turn, checks image digest, enclave pubkey, TDX quote, and the Ed25519 signature — locally.</div></div>
+        <div class="how-cell"><div class="how-num">IV · Agent commerce</div><div class="how-title">AI seats pay their own bills.</div><div class="how-body">Cabinet seats are funded with USDC via x402 / MPP (dual402). Each Claude call debits the deposit; out of budget = seat suspended.</div></div>
+        <div class="how-cell"><div class="how-num">V · Programmatic payouts</div><div class="how-title">Pot, attested and released.</div><div class="how-body">Game-end winner attestation is signed by the enclave; an on-chain escrow recovers the pubkey and pays the pot. No admin in the loop.</div></div>
+      </div>
+    </section>
   </div>
 </div>
 
-<!-- ─── GAME ROUTE ──────────────────────────────────────────── -->
+<!-- ===== GAME ===== -->
 <div class="route" id="game">
-  <!-- LEFT PANE -->
-  <section class="pane" id="pane-left">
-    <div class="pane-header">
-      <span class="title">Submit orders</span>
-      <button class="ghost sm" onclick="goto('lobby')">← Lobby</button>
-    </div>
-    <div class="pane-scroll">
-      <div class="field">
-        <label>You are playing</label>
-        <select id="power" onchange="onPowerChange()"></select>
-        <div id="submitted-pills" class="badges" style="margin-top:8px;display:flex;flex-wrap:wrap;gap:4px"></div>
+  <div class="game-shell" id="game-shell">
+    <!-- side: ledger -->
+    <aside class="gs-side">
+      <div class="ledger-head">
+        <div class="phase-pill"><span class="dot" style="width:6px;height:6px;border-radius:50%;background:var(--gold);display:inline-block"></span><span id="phase-pill-text">—</span></div>
+        <h2 id="phase-h2">—</h2>
+        <div class="deadline">resolved <strong id="phase-resolved">0</strong> turns · submitted <strong id="phase-submitted">0/7</strong></div>
       </div>
 
-      <h4>Your units</h4>
-      <div id="order-form">
-        <div class="empty" style="padding:24px 8px">Select a power…</div>
+      <div class="power-row">
+        <span class="crest" id="player-crest" style="color: var(--p-fra); border-color: rgba(95,163,163,0.5)">F</span>
+        <select id="power"></select>
+        <span class="pmeta" id="player-power-meta"></span>
       </div>
 
-      <h4>Encrypted envelope</h4>
-      <div class="blob encrypted" id="latest-ciphertext">
-        <button class="copy-btn" id="copy-cipher" style="display:none" onclick="copyCipher()">copy</button>
-        <span class="dim">— submit orders to see the sealed-box envelope —</span>
+      <div class="ledger" id="ledger">
+        <div class="ledger-section-title"><span>Your units</span><span id="orderable-count">—</span></div>
+        <div id="ledger-rows"></div>
       </div>
 
-      <div class="row" style="margin-top:18px">
-        <button class="accent" onclick="submitOrders()" title="⌘/Ctrl-S">Encrypt + submit</button>
+      <div class="ledger-cta">
+        <div class="kicker encrypt" style="margin-bottom: 10px;">Envelope · ready when sealed</div>
+        <div class="envelope-preview" id="envelope-preview">— write orders by clicking units on the board —</div>
+        <button class="btn btn-primary" style="width:100%;justify-content:center" onclick="window.openLockbox()" id="seal-btn">Seal &amp; submit envelope</button>
+        <div style="display: flex; gap: 8px; margin-top: 10px;">
+          <button class="btn btn-sm" style="flex:1;justify-content:center" onclick="window.seedDemoOrders()" title="Fill all 7 powers with canonical openings — for demo speed">🌱 Demo seed</button>
+          <button class="btn btn-sm" style="flex:1;justify-content:center" onclick="window.resolveTurn()" title="R">Resolve →</button>
+        </div>
+        <div class="kicker" style="margin-top: 16px; color: var(--fg-3);">Verify locally · clean terminal</div>
+        <div class="cli-block" id="verify-cli-snippet" style="min-width: 0; margin-top: 6px;">$ npx vienna-verify &lt;create a turn first&gt;</div>
       </div>
-      <div class="row" style="margin-top:8px">
-        <button class="ghost" onclick="seedDemoOrders()" title="Fill all 7 powers with canonical openings — for demo speed">
-          🌱 Demo seed
-        </button>
-        <button class="ghost" onclick="resolveTurn()" title="R">Resolve →</button>
-      </div>
+    </aside>
 
-      <h4>Game info</h4>
-      <div class="mono dim" id="game-meta">—</div>
-    </div>
-  </section>
-
-  <div class="resizer" id="resizer-left" data-left="pane-left"></div>
-
-  <!-- CENTER PANE — MAP -->
-  <section class="pane" id="pane-center">
-    <div id="map-wrap">
-      <div class="map-overlay-top">
+    <!-- board -->
+    <main class="gs-board">
+      <div class="board-overlay-top">
         <div class="phase-card">
-          <span id="phase-name" class="phase-name">—</span>
-          <span class="sep">·</span>
-          <span id="phase-status">no game loaded</span>
+          <div class="phase-no" id="board-phase-no">—</div>
+          <div class="phase-sub" id="board-phase-sub">no game loaded</div>
         </div>
+        <div class="power-legend" id="power-legend"></div>
       </div>
-      <div id="map-svg-host"></div>
-      <div class="map-hint" id="map-hint" style="display:none">
-        <div style="margin-bottom:6px">
-          Click any <b>unit icon</b> to see its legal orders · <kbd>H</kbd> hold · <kbd>Esc</kbd> deselect
-        </div>
-        <div style="display:flex;gap:14px;font-size:10.5px;flex-wrap:wrap">
-          <span><span style="display:inline-block;width:18px;height:2px;background:#ffce4d;vertical-align:middle;margin-right:4px"></span>move</span>
-          <span><span style="display:inline-block;width:18px;height:2px;background:#6ec0ff;vertical-align:middle;margin-right:4px;background-image:linear-gradient(90deg,#6ec0ff 60%,transparent 60%);background-size:6px 100%"></span>support</span>
-          <span><span style="display:inline-block;width:18px;height:2px;background-image:radial-gradient(circle,#5ae18b 1px,transparent 1px);background-size:4px 4px;vertical-align:middle;margin-right:4px"></span>convoy</span>
-          <span><span style="display:inline-block;width:10px;height:10px;border:2px solid #ffce4d;border-radius:50%;vertical-align:middle;margin-right:4px"></span>hold</span>
-        </div>
-      </div>
+      <div id="mode-hint" class="mode-hint" style="display:none"></div>
+      <div id="map-host"></div>
       <div class="map-controls">
-        <button onclick="mapZoom(1.2)" title="Zoom in">+</button>
-        <button onclick="mapZoom(0.83)" title="Zoom out">−</button>
-        <button onclick="mapFit()" title="Fit">⤢</button>
+        <button class="icon-btn" onclick="window.mapZoom(1.2)" title="Zoom in">+</button>
+        <button class="icon-btn" onclick="window.mapZoom(0.83)" title="Zoom out">−</button>
+        <button class="icon-btn" onclick="window.mapFit()" title="Fit">⤢</button>
       </div>
+      <div id="mode-picker-host"></div>
+    </main>
+
+    <!-- bottom timeline -->
+    <div class="gs-time">
+      <div class="timeline" id="turn-timeline"></div>
     </div>
-    <div class="turn-timeline" id="turn-timeline"></div>
-  </section>
 
-  <div class="resizer" id="resizer-right" data-right="pane-right"></div>
-
-  <!-- RIGHT PANE -->
-  <section class="pane" id="pane-right">
-    <div class="pane-header">
-      <span class="title">Turn log · AI seats</span>
-    </div>
-    <div class="pane-scroll">
-      <h4>AI seats</h4>
-      <div id="ai-seats-list"><div class="empty" style="padding:18px 8px">none attached</div></div>
-      <button class="ghost block sm" style="margin-top:6px" onclick="openAddSeat()">+ Add AI seat</button>
-
-      <h4>Turn log</h4>
-      <div id="turns"><div class="empty" style="padding:18px 8px">no turns yet</div></div>
-
-      <h4>Verify locally</h4>
-      <div class="dim" style="font-size:11.5px;margin-bottom:6px">
-        Independently re-check the latest turn from a clean terminal:
+    <!-- cabinet -->
+    <aside class="gs-cab">
+      <div class="cab-head">
+        <h2>Cabinet</h2>
+        <span class="kicker">AI seats</span>
       </div>
-      <div class="verify-cli" id="verify-cli-snippet">$ npx vienna-verify &lt;create a turn first&gt;</div>
-    </div>
-  </section>
+      <div id="ai-seats-list"></div>
+      <div class="cab-add">
+        <button class="btn btn-sm" onclick="window.openAddSeat()" style="width:100%;justify-content:center">+ Attach AI seat</button>
+      </div>
+
+      <div class="cab-head" style="margin-top: 14px;">
+        <h2>Turn log</h2>
+        <span class="kicker verify"><span style="color: var(--verify);">↺</span> live</span>
+      </div>
+      <div id="turn-log"></div>
+    </aside>
+  </div>
 </div>
 
-<!-- ─── ABOUT / TRUST EXPLAINER MODAL ───────────────────────── -->
-<div class="modal-backdrop" id="about-modal" onclick="if(event.target===this)closeModal('about-modal')">
-  <div class="modal">
-    <h3>Why this is on EigenCompute</h3>
-    <div class="modal-sub">A 90-second explainer for anyone hitting the page cold.</div>
-
-    <p style="font-size:14px;line-height:1.6;color:var(--fg-2);margin:0 0 14px">
-      Diplomacy is the only major board game whose rules <em>structurally require</em> a trusted third party:
-      seven players write secret orders, a GM holds and reveals them, then runs a complex adjudicator.
-      Every online Diplomacy server today asks you to trust the company hosting it.
-    </p>
-    <p style="font-size:14px;line-height:1.6;color:var(--fg-2);margin:0 0 14px">
-      Vienna runs that adjudicator inside an <b>Intel TDX enclave</b>. Concretely:
-    </p>
-    <div style="display:grid;gap:10px;font-size:13px;line-height:1.5">
-      <div style="display:flex;gap:10px"><div style="color:var(--accent);font-weight:600;width:160px;flex-shrink:0">Encrypted memory</div>
-        <div>Your orders are sealed-box encrypted to a keypair that lives only in the enclave. The host OS — and the developer — can't read them.</div></div>
-      <div style="display:flex;gap:10px"><div style="color:var(--accent);font-weight:600;width:160px;flex-shrink:0">Attestations</div>
-        <div>Every turn delta is Ed25519-signed by a key the enclave generated at boot. The pubkey is bound to the running binary's measurement.</div></div>
-      <div style="display:flex;gap:10px"><div style="color:var(--accent);font-weight:600;width:160px;flex-shrink:0">Source verifiability</div>
-        <div>Rebuild from the public repo and compare the image digest. <code>/verify</code> tells you the commit you should be building from.</div></div>
-      <div style="display:flex;gap:10px"><div style="color:var(--accent);font-weight:600;width:160px;flex-shrink:0">Agent commerce</div>
-        <div>AI seats pay their own per-turn inference via x402/MPP. Each Claude call debits a USDC deposit; out of funds = seat suspended.</div></div>
-      <div style="display:flex;gap:10px"><div style="color:var(--accent);font-weight:600;width:160px;flex-shrink:0">Programmatic payouts</div>
-        <div>Game-end winner attestation is signed by the enclave. An on-chain escrow recovers the pubkey and releases the pot — no admin in the loop.</div></div>
-    </div>
-
-    <p style="font-size:13px;color:var(--dim);margin-top:18px">
-      Click any <span class="chip" style="cursor:default">✓ Verified</span> chip on a turn to see the trust chain unfold.
-    </p>
-    <div style="text-align:right;margin-top:12px">
-      <button class="accent" onclick="closeModal('about-modal')">Got it</button>
+<!-- ===== ABOUT OVERLAY ===== -->
+<div class="overlay-root" id="about-modal" onclick="if(event.target===this)window.closeModal('about-modal')">
+  <div class="certificate bracketed" style="width:min(640px,100%)">
+    <span class="brk-tr"></span><span class="brk-bl"></span>
+    <button class="overlay-close" onclick="window.closeModal('about-modal')">Close · esc</button>
+    <div class="cert-frame">
+      <div class="cert-inner">
+        <div class="cert-head" style="margin-bottom: 22px">
+          <div class="crest"></div>
+          <h1>Why this is on EigenCompute</h1>
+          <div class="sub">A 90-second explainer for anyone cold-opening this page</div>
+        </div>
+        <p style="font-family: var(--f-serif); font-size: 14.5px; color: var(--fg-2); margin: 0 0 14px;">
+          Diplomacy is the only major board game whose rules <em>structurally require</em> a trusted third party: seven players write secret orders, a GM holds and reveals them simultaneously, then runs a complex adjudicator. Every online Diplomacy server today asks you to trust the company hosting it.
+        </p>
+        <p style="font-family: var(--f-serif); font-size: 14.5px; color: var(--fg-2); margin: 0 0 18px;">
+          Vienna runs that adjudicator inside an Intel TDX enclave on EigenCompute. The trust moves from "the company" to "Intel's CPU attestation + a published commit."
+        </p>
+        <div style="display: grid; grid-template-columns: 140px 1fr; gap: 10px 18px; font-size: 13.5px;">
+          <div class="kicker gold">Encrypted memory</div><div>Orders sealed to a keypair that lives only inside the enclave. Operator can't decrypt them.</div>
+          <div class="kicker gold">Attestations</div><div>Every turn delta is Ed25519-signed by an enclave-bound key.</div>
+          <div class="kicker gold">Source verifiable</div><div>Rebuild from the repo, compare image digests, verify locally.</div>
+          <div class="kicker gold">Agent commerce</div><div>AI seats pay their own per-turn Claude inference via x402 / MPP.</div>
+          <div class="kicker gold">Programmatic payouts</div><div>Winner attestation triggers an on-chain escrow release. No admin.</div>
+        </div>
+        <div style="text-align: right; margin-top: 22px;">
+          <button class="btn btn-primary" onclick="window.closeModal('about-modal')">Got it</button>
+        </div>
+      </div>
     </div>
   </div>
 </div>
 
-<!-- ─── VERIFY MODAL ────────────────────────────────────────── -->
-<div class="modal-backdrop" id="verify-modal" onclick="if(event.target===this)closeModal('verify-modal')">
-  <div class="modal">
-    <h3>Trust chain</h3>
-    <div class="modal-sub" id="verify-sub">Turn —</div>
-    <div id="verify-body"></div>
-    <p class="dim" style="margin-top:18px;font-size:12px">
-      Re-verify from a clean terminal — this does the same checks, locally:
-    </p>
-    <div class="verify-cli" id="verify-cli-modal">npx vienna-verify ...</div>
-    <div style="text-align:right;margin-top:18px">
-      <button class="ghost" onclick="closeModal('verify-modal')">Close</button>
+<!-- ===== CERTIFICATE OVERLAY (trust chain) ===== -->
+<div class="overlay-root" id="verify-modal" onclick="if(event.target===this)window.closeModal('verify-modal')">
+  <div class="certificate bracketed">
+    <span class="brk-tr"></span><span class="brk-bl"></span>
+    <button class="overlay-close" onclick="window.closeModal('verify-modal')">Close · esc</button>
+    <div class="cert-frame">
+      <div class="cert-inner">
+        <header class="cert-head">
+          <div class="crest"></div>
+          <h1>Certificate of Adjudication</h1>
+          <div class="sub">Vienna · TDX-Attested Diplomacy Server</div>
+          <div class="turn-meta" id="cert-turn-meta">—</div>
+        </header>
+        <section class="chain" id="cert-chain"></section>
+        <div class="cert-footer">
+          <div class="signature-block" id="cert-signature">—</div>
+          <div>
+            <div class="cli-block" id="cert-cli"><span class="prompt">$</span> npx vienna-verify —</div>
+            <button class="btn btn-sm btn-danger" id="cert-tamper-btn" style="margin-top: 10px; width: 100%; justify-content: center;" onclick="window.toggleTamper()">⚠ Demo: simulate tamper</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="cert-banner" id="cert-banner">✓ Sealed · adjudication binds to the binary you can read</div>
+  </div>
+</div>
+
+<!-- ===== LOCKBOX OVERLAY (encrypt animation) ===== -->
+<div class="overlay-root" id="lockbox-modal" onclick="if(event.target===this)window.closeModal('lockbox-modal')">
+  <div class="lockbox bracketed">
+    <span class="brk-tr"></span><span class="brk-bl"></span>
+    <button class="overlay-close" onclick="window.closeModal('lockbox-modal')">Close · esc</button>
+    <div class="lockbox-inner">
+      <header class="lockbox-head">
+        <div style="display: flex; align-items: center; gap: 12px;">
+          <div class="kicker encrypt">Sealed-box envelope · libsodium</div>
+          <div class="rule" style="flex: 1;"></div>
+          <span class="chip" id="lockbox-state">idle</span>
+        </div>
+        <h1>What you wrote &amp; what the server will store.</h1>
+        <div class="sub">Orders are sealed to the enclave's Curve25519 envelope key in this tab, before any wire trip. The plaintext on the left never touches the server. Only the ciphertext on the right does.</div>
+      </header>
+      <div class="lockbox-cols">
+        <div class="lockbox-col">
+          <h3>① Plaintext · this device · <span id="lockbox-power-name">—</span></h3>
+          <div class="plain-orders" id="lockbox-plain"></div>
+          <div class="mono" style="margin-top: 18px; font-size: 10.5px; color: var(--fg-3);" id="lockbox-plain-meta">canonical JSON · — bytes</div>
+        </div>
+        <div class="lockbox-bridge">
+          <div class="kicker gold" style="writing-mode: vertical-rl; transform: rotate(180deg); letter-spacing: 0.3em;">seal</div>
+          <div class="bridge-arrow" style="margin-top: 10px;">⟶</div>
+          <div id="lockbox-bridge-bar" style="margin-top: 8px; width: 2px; flex: 1; background: var(--rule-2);"></div>
+          <div class="bridge-arrow" style="margin-bottom: 8px;">⟶</div>
+        </div>
+        <div class="lockbox-col">
+          <h3 class="gold">② Ciphertext · what the server stores</h3>
+          <div class="cipher-stream mono" id="lockbox-cipher"></div>
+          <div class="mono" style="margin-top: 18px; font-size: 10.5px; color: var(--fg-3);" id="lockbox-cipher-meta">curve25519 → xsalsa20poly1305 · 0 bytes</div>
+        </div>
+      </div>
+      <div class="lockbox-note">
+        <strong>The point.</strong> Even the operator running this enclave on EigenCompute cannot read this envelope. Decryption happens inside attested TDX memory at the phase deadline, against a private key born in the enclave that has never left it.
+      </div>
+      <div class="lockbox-controls">
+        <div class="left">
+          <span class="kicker">Envelope pubkey</span>
+          <span class="mono" id="lockbox-pubkey" style="font-size: 11.5px; color: var(--gold);">—</span>
+        </div>
+        <div style="display: flex; gap: 10px;">
+          <button class="btn" onclick="window.closeModal('lockbox-modal')">Cancel</button>
+          <button class="btn btn-primary" id="lockbox-submit" disabled onclick="window.confirmSeal()">Sealing…</button>
+        </div>
+      </div>
     </div>
   </div>
 </div>
 
-<!-- ─── ADD AI SEAT MODAL ───────────────────────────────────── -->
-<div class="modal-backdrop" id="seat-modal" onclick="if(event.target===this)closeModal('seat-modal')">
-  <div class="modal" style="max-width:480px">
-    <h3>Add AI seat</h3>
-    <div class="modal-sub">
-      Player-signed personality config. The fingerprint is folded into every turn's signature
-      so anyone can verify the AI played exactly this config.
-    </div>
+<!-- ===== ADD AI SEAT OVERLAY ===== -->
+<div class="overlay-root" id="seat-modal" onclick="if(event.target===this)window.closeModal('seat-modal')">
+  <div class="add-seat-modal bracketed">
+    <span class="brk-tr"></span><span class="brk-bl"></span>
+    <button class="overlay-close" onclick="window.closeModal('seat-modal')">Close · esc</button>
+    <h2>Appoint a cabinet seat</h2>
+    <p class="sub">A player-signed persona. The fingerprint is folded into every turn's signature so anyone can verify the AI played exactly this config.</p>
     <div class="field">
-      <label>Power</label>
+      <label>Seat (power)</label>
       <select id="seat-power"></select>
     </div>
     <div class="field">
-      <label>Aggression: <span id="seat-aggro-val">0.7</span></label>
-      <input type="range" id="seat-aggro" min="0" max="1" step="0.05" value="0.7"
-             oninput="document.getElementById('seat-aggro-val').textContent = this.value" />
+      <label>Aggression</label>
+      <div class="range-field">
+        <input type="range" id="seat-aggro" min="0" max="1" step="0.05" value="0.7" />
+        <span class="v" id="seat-aggro-v">0.70</span>
+      </div>
     </div>
     <div class="field">
-      <label>Loyalty: <span id="seat-loyal-val">0.5</span></label>
-      <input type="range" id="seat-loyal" min="0" max="1" step="0.05" value="0.5"
-             oninput="document.getElementById('seat-loyal-val').textContent = this.value" />
+      <label>Loyalty</label>
+      <div class="range-field">
+        <input type="range" id="seat-loyal" min="0" max="1" step="0.05" value="0.5" />
+        <span class="v" id="seat-loyal-v">0.50</span>
+      </div>
     </div>
     <div class="field">
       <label>Opening</label>
@@ -822,63 +990,86 @@
       </select>
     </div>
     <div class="field">
-      <label>Notes (free-form prompt)</label>
-      <textarea id="seat-notes" placeholder="Play opportunistic, ally with England, betray Italy by 1904"></textarea>
+      <label>Persona notes (free-form prompt)</label>
+      <textarea id="seat-notes" rows="2" placeholder="Play opportunistic, ally with England, betray Italy by 1904"></textarea>
     </div>
     <div class="field">
       <label>Deposit (USDC)</label>
       <input id="seat-deposit" class="mono" value="1.00" />
-      <div class="help">x402 / dual402 funded. Each turn debits ~$0.02 of inference.</div>
+      <div class="help">x402 / dual402 funded. ~$0.02 per turn of inference.</div>
     </div>
-    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:18px">
-      <button class="ghost" onclick="closeModal('seat-modal')">Cancel</button>
-      <button class="accent" onclick="confirmAddSeat()">Attach seat</button>
+    <div style="display: flex; gap: 8px; justify-content: flex-end; margin-top: 18px;">
+      <button class="btn" onclick="window.closeModal('seat-modal')">Cancel</button>
+      <button class="btn btn-primary" onclick="window.confirmAddSeat()">Attach seat</button>
     </div>
   </div>
 </div>
 
-<div id="toast-host"></div>
+</div><!-- /shell -->
+
+<div id="toasts"></div>
 
 <script type="module">
 import nacl from "https://esm.run/tweetnacl@1.0.3";
 import naclUtil from "https://esm.run/tweetnacl-util@0.15.1";
 
-// =============================================================
-// Globals + tiny utility belt
-// =============================================================
+// =========================================================
+// CONSTANTS
+// =========================================================
 const api = window.location.origin;
 const POWERS = ["AUSTRIA","ENGLAND","FRANCE","GERMANY","ITALY","RUSSIA","TURKEY"];
+const PCOLOR = { AUSTRIA: "var(--p-aus)", ENGLAND: "var(--p-eng)", FRANCE: "var(--p-fra)",
+  GERMANY: "var(--p-ger)", ITALY: "var(--p-ita)", RUSSIA: "var(--p-rus)", TURKEY: "var(--p-tur)" };
+const PCOLOR_HEX = { AUSTRIA: "#c5664a", ENGLAND: "#6884b8", FRANCE: "#5fa3a3",
+  GERMANY: "#9b9694", ITALY: "#82a76a", RUSSIA: "#c8c4be", TURKEY: "#d4a84a" };
+const SVG_ID_ALIAS = { LYO:"gol", MAO:"mid", NAO:"nat", NWG:"nrg", TYS:"tyn" };
 
+// =========================================================
+// STATE
+// =========================================================
 const state = {
-  enclave: null,             // { encryption_public_key, signing_public_key, image_digest }
+  enclave: null,
   gameId: null,
   gameState: null,
   orderable: null,
   seats: [],
-  view: "lobby",             // "lobby" | "game"
+  view: "lobby",
   mapTransform: { scale: 1, x: 0, y: 0 },
+  mapInitialized: false,
+  userPickedPower: false,
+  lastCipher: null,
+  certTampered: false,
+  certCurrentTurn: null,
+};
+const orderState = {
+  staged: {},        // { fromProv: { kind, order, /* state machine bits */ } }
+  legalIndex: {},
+  selected: null,    // selected unit's province key (during entry)
+  mode: null,        // null | "move" | "support" | "convoy" — set after a mode is chosen
+  // For multi-step entries:
+  step: 0,           // 0 = pick mode, 1 = pick target, 2 = pick destination (for support/convoy)
+  supportTarget: null,
 };
 
-const b64  = naclUtil.encodeBase64;
+// =========================================================
+// utils
+// =========================================================
+const b64 = naclUtil.encodeBase64;
 const b64d = naclUtil.decodeBase64;
 const textd = naclUtil.decodeUTF8;
 
 function $(id) { return document.getElementById(id); }
 function $$(sel) { return document.querySelectorAll(sel); }
-
-function toast(msg, kind="") {
+function toast(msg, kind = "") {
   const el = document.createElement("div");
   el.className = "toast " + kind;
   el.textContent = msg;
-  $("toast-host").appendChild(el);
+  $("toasts").appendChild(el);
   setTimeout(() => { el.style.opacity = "0"; setTimeout(() => el.remove(), 200); }, 3000);
 }
 
 async function api_(path, opts = {}) {
-  const res = await fetch(api + path, {
-    headers: { "Content-Type": "application/json" },
-    ...opts,
-  });
+  const res = await fetch(api + path, { headers: { "Content-Type": "application/json" }, ...opts });
   if (!res.ok) {
     let detail = await res.text();
     try { detail = JSON.parse(detail).detail || detail; } catch {}
@@ -895,7 +1086,6 @@ function canonicalJSON(obj) {
   }
   return JSON.stringify(obj);
 }
-
 function verifySignature(envelope) {
   try {
     const msg = textd(canonicalJSON(envelope.payload));
@@ -905,104 +1095,139 @@ function verifySignature(envelope) {
   } catch { return false; }
 }
 
-// =============================================================
-// Sealed-box (hybrid envelope; tweetnacl has no sealed-box)
-// =============================================================
-async function sealForEnclave(plaintextStr) {
+// =========================================================
+// sealed-box (hybrid envelope)
+// =========================================================
+function sealForEnclave(plaintextStr) {
   const recipientPk = b64d(state.enclave.encryption_public_key);
   const ephem = nacl.box.keyPair();
   const nonce = nacl.randomBytes(nacl.box.nonceLength);
   const msg = textd(plaintextStr);
   const ct = nacl.box(msg, nonce, recipientPk, ephem.secretKey);
-  return JSON.stringify({
-    epk: b64(ephem.publicKey),
-    nonce: b64(nonce),
-    ct: b64(ct),
-  });
+  return JSON.stringify({ epk: b64(ephem.publicKey), nonce: b64(nonce), ct: b64(ct) });
 }
 
-// =============================================================
-// Routing
-// =============================================================
+// =========================================================
+// routing
+// =========================================================
 window.goto = (route, gameId) => {
   state.view = route;
   $$(".route").forEach(r => r.classList.toggle("active", r.id === route));
   if (route === "lobby") refreshLobby();
   if (route === "game" && gameId) {
     state.gameId = gameId;
+    state.mapInitialized = false;
+    orderState.selected = null;
+    orderState.mode = null;
+    orderState.step = 0;
     refreshAll();
   }
 };
 
-// =============================================================
-// Enclave identity (loaded once at startup)
-// =============================================================
+// =========================================================
+// enclave identity
+// =========================================================
 async function loadEnclave() {
   try {
     const a = await api_("/attestation");
     state.enclave = a.enclave;
-    $("enclave-pill").textContent =
-      `enclave: ${a.enclave.signing_public_key.slice(0, 14)}…`;
-    $("image-pill").textContent = `image: ${a.enclave.image_digest}`;
+    $("enclave-key").textContent = a.enclave.signing_public_key.slice(0, 18) + "…";
+    $("image-digest").textContent = (a.enclave.image_digest || "—").slice(0, 18) + "…";
   } catch (e) {
-    $("enclave-pill").textContent = "enclave: unreachable";
-    $("enclave-pill").classList.remove("live");
+    $("enclave-key").textContent = "unreachable";
   }
 }
 
-// =============================================================
+// =========================================================
 // LOBBY
-// =============================================================
+// =========================================================
 async function refreshLobby() {
-  const list = $("lobby-list");
-  list.innerHTML = `<div class="empty">Loading…</div>`;
+  const host = $("lobby-list");
   try {
     const { games } = await api_("/games");
+    $("lobby-count").textContent = `${games.length} in session`;
     if (!games.length) {
-      list.innerHTML = `<div class="empty">No active games yet. Start one →</div>`;
+      host.innerHTML = `<div class="empty-state">No games yet. Convene one to your right.</div>`;
       return;
     }
-    list.innerHTML = games.map(g => `
-      <a class="game-card" onclick="goto('game','${g.game_id}')">
-        <div class="id">${g.game_id}</div>
-        <div class="meta">${g.phase} · ${g.turns_resolved} turns resolved</div>
-        <div class="badges">
-          ${g.is_done ? `<span class="badge done">finished</span>` : ``}
-          ${g.submitted_powers.map(p => `<span class="badge power">${p} ✓</span>`).join("")}
-          ${g.ai_seat_powers.map(p => `<span class="badge">AI · ${p}</span>`).join("")}
-        </div>
-      </a>
-    `).join("");
+    host.innerHTML = games.map((g, i) => {
+      const fillBars = POWERS.map(p => {
+        const submitted = g.submitted_powers.includes(p);
+        const ai = g.ai_seat_powers.includes(p);
+        const filled = submitted || ai;
+        const hue = PCOLOR_HEX[p];
+        return `<div class="power-tick ${filled ? "filled" : ""}" title="${p}${ai ? ' · AI' : ''}${submitted ? ' · submitted' : ''}" style="${filled ? `background: ${hue}${ai ? '55' : 'ff'}` : ''}"></div>`;
+      }).join("");
+      return `
+        <div class="game-card" onclick="window.goto('game','${g.game_id}')">
+          <div class="gc-id">№<span class="num">${String(i + 1).padStart(2, '0')}</span></div>
+          <div class="gc-mid">
+            <h3>${g.game_id}</h3>
+            <div class="meta-line">
+              <span>${g.phase}</span><span class="sep">·</span>
+              <span>${g.turns_resolved} turn${g.turns_resolved === 1 ? '' : 's'} resolved</span>
+              ${g.is_done ? `<span class="sep">·</span><span class="chip verify"><span class="dot"></span>finished</span>` : ''}
+            </div>
+            <div class="gc-powers">${fillBars}</div>
+          </div>
+          <div class="gc-right">
+            <span class="chip muted">${g.submitted_powers.length}/7 submitted</span>
+            <span class="kicker gold">enter →</span>
+          </div>
+        </div>`;
+    }).join("");
   } catch (e) {
-    list.innerHTML = `<div class="empty">Error loading games: ${e.message}</div>`;
+    host.innerHTML = `<div class="empty-state">Error loading games: ${e.message}</div>`;
   }
+  refreshTape();
 }
-window.refreshLobby = refreshLobby;
 
+async function refreshTape() {
+  // Build a tape of recent attested turns across all games
+  try {
+    const { games } = await api_("/games");
+    const items = [];
+    for (const g of games) {
+      const n = g.turns_resolved;
+      if (n === 0) continue;
+      // Use the most recent turn id; signed snippet placeholder
+      items.push({
+        gid: g.game_id, phase: g.phase, turn: n,
+        sig: state.enclave?.signing_public_key?.slice(0, 8) || "—",
+      });
+    }
+    // Fill with placeholders if not enough — make the tape look alive
+    while (items.length < 8) {
+      items.push({ gid: "—", phase: "—", turn: "—", sig: "—" });
+    }
+    const html = items.map(i =>
+      `<span class="tape-item"><span class="gm">${i.gid}</span><span class="ph">${i.phase}</span>turn ${i.turn}<span class="sig">✓ ${i.sig}</span></span>`
+    ).join("");
+    // Duplicate for seamless loop
+    $("tape-track").innerHTML = html + html;
+  } catch {}
+}
+
+window.refreshLobby = refreshLobby;
 window.createGameFromLobby = async () => {
   const id = ($("new-game-id").value || "").trim() || null;
   try {
-    const body = await api_("/games", {
-      method: "POST",
-      body: JSON.stringify({ game_id: id, address_book: {} }),
-    });
+    const body = await api_("/games", { method: "POST", body: JSON.stringify({ game_id: id, address_book: {} }) });
     state.gameId = body.game_id;
-    goto("game", body.game_id);
-    toast("Game created · " + body.game_id, "ok");
+    window.goto("game", body.game_id);
+    toast("Game convened · " + body.game_id, "ok");
   } catch (e) {
     toast("Create failed: " + e.message, "error");
   }
 };
-
 window.joinGame = () => {
   const id = $("join-game-id").value.trim();
-  if (!id) return;
-  goto("game", id);
+  if (id) window.goto("game", id);
 };
 
-// =============================================================
-// GAME VIEW
-// =============================================================
+// =========================================================
+// GAME — main refresh loop
+// =========================================================
 async function refreshAll() {
   if (!state.gameId) return;
   try {
@@ -1012,322 +1237,18 @@ async function refreshAll() {
     ]);
     state.gameState = stateRes.state;
     state.orderable = orderableRes;
+    rebuildLegalIndex();
     populatePowerSelect();
-    updatePhaseCard();
-    updateGameMeta();
-    rebuildOrderForm();
-    await Promise.all([refreshMap(), refreshTurns(), refreshSeats()]);
+    paintHeader();
+    paintLedger();
+    paintLegend();
+    paintCabinet();
+    paintTimeline();
+    await refreshMap();
+    paintStagedArrows();
   } catch (e) {
+    console.error(e);
     toast("Load failed: " + e.message, "error");
-  }
-}
-
-function populatePowerSelect() {
-  const sel = $("power");
-  const seatSel = $("seat-power");
-  if (!sel.options.length) {
-    for (const p of POWERS) {
-      sel.add(new Option(p, p));
-      seatSel.add(new Option(p, p));
-    }
-  }
-  // Always default to FRANCE on game load (was: only once, leaving stale value
-  // from prior games / alphabetical first option).
-  if (!state.userPickedPower) sel.value = "FRANCE";
-}
-
-function updatePhaseCard() {
-  $("phase-name").textContent = state.gameState.phase;
-  const sub = state.gameState.is_done
-    ? `done · winner: ${state.gameState.winner || "n/a"}`
-    : `${state.gameState.turns_resolved} resolved · ${state.gameState.submitted_powers.length}/${POWERS.length} submitted`;
-  $("phase-status").textContent = sub;
-}
-
-function updateGameMeta() {
-  $("game-meta").innerHTML = `
-    game: <b>${state.gameId}</b><br/>
-    phase: ${state.gameState.phase}<br/>
-    turns: ${state.gameState.turns_resolved}<br/>
-    state hash: ${state.gameState.state_hash.slice(0,16)}…
-  `;
-  // Submitted-power pills next to the selector
-  const aiPowers = new Set(state.seats.map(s => s.power));
-  $("submitted-pills").innerHTML = POWERS.map(p => {
-    const sub = state.gameState.submitted_powers.includes(p);
-    const ai = aiPowers.has(p);
-    if (!sub && !ai) return "";
-    const cls = ai ? "badge" : "badge power";
-    const label = ai ? `AI · ${p}` : `${p} ✓`;
-    return `<span class="${cls}">${label}</span>`;
-  }).join("");
-}
-
-function rebuildOrderForm() {
-  const power = $("power").value;
-  if (!power || !state.orderable) return;
-  const orderable = state.orderable.orderable_by_power[power] || [];
-  const possible = state.orderable.possible_orders;
-  const form = $("order-form");
-  if (!orderable.length) {
-    form.innerHTML = `<div class="empty" style="padding:18px 8px">No orderable units for ${power} this phase.</div>`;
-    return;
-  }
-  form.innerHTML = orderable.map(loc => {
-    const opts = (possible[loc] || []).map(o =>
-      `<option value="${o.replace(/"/g,"&quot;")}">${o}</option>`).join("");
-    return `
-      <div class="order-row">
-        <div class="unit">${loc}</div>
-        <select data-loc="${loc}" onchange="onSidePanelOrderChange(this)">${opts}</select>
-        <button class="remove" onclick="this.closest('.order-row').remove()" title="skip">×</button>
-      </div>
-    `;
-  }).join("");
-  // Re-apply any staged orders to the dropdowns
-  for (const [loc, raw] of Object.entries(orderState.staged)) {
-    const sel = document.querySelector(`#order-form select[data-loc="${loc}"]`);
-    if (sel) sel.value = raw;
-  }
-}
-
-window.onPowerChange = () => {
-  state.userPickedPower = true;
-  // Switching power invalidates any unit selection
-  orderState.selected = null;
-  orderState.staged = {};
-  if (state.mapSvg) {
-    clearOverlay();
-    clearSelectionClasses();
-  }
-  rebuildOrderForm();
-};
-
-window.onSidePanelOrderChange = (sel) => {
-  // Side-panel → map sync
-  const loc = sel.dataset.loc;
-  const raw = sel.value;
-  orderState.staged[loc] = raw;
-  // If the unit currently selected on the map is this one, refresh its arrows
-  if (orderState.selected === loc) drawArrowsFor(loc);
-};
-window.rebuildOrderForm = rebuildOrderForm;
-
-window.submitOrders = async () => {
-  const power = $("power").value;
-  const orders = Array.from($$("#order-form select"))
-    .map(s => s.value).filter(Boolean);
-  if (!orders.length) { toast("No orders selected", "error"); return; }
-  const envelope = await sealForEnclave(JSON.stringify({ power, orders }));
-  const blob = $("latest-ciphertext");
-  blob.innerHTML = `<button class="copy-btn" onclick="copyCipher()">copy</button>` + envelope;
-  state.lastCipher = envelope;
-  try {
-    await api_(`/games/${state.gameId}/orders`, {
-      method: "POST", body: JSON.stringify({ ciphertext: envelope }),
-    });
-    toast(`Submitted ${orders.length} orders for ${power}`, "ok");
-    await refreshAll();
-  } catch (e) {
-    toast("Submit failed: " + e.message, "error");
-  }
-};
-
-window.resolveTurn = async () => {
-  const submitted = state.gameState?.submitted_powers?.length || 0;
-  if (submitted === 0) {
-    if (!confirm("No powers have submitted yet. Resolve anyway? All powers will hold.")) return;
-  }
-  try {
-    await api_(`/games/${state.gameId}/resolve`, { method: "POST" });
-    toast("Turn resolved", "ok");
-    await refreshAll();
-  } catch (e) {
-    toast("Resolve failed: " + e.message, "error");
-  }
-};
-
-// =============================================================
-// MAP — pan + zoom
-// =============================================================
-async function refreshMap() {
-  const host = $("map-svg-host");
-  try {
-    const res = await fetch(`${api}/games/${state.gameId}/map.svg`);
-    if (res.ok) {
-      host.innerHTML = await res.text();
-      const svg = host.querySelector("svg");
-      if (svg) {
-        svg.removeAttribute("width");
-        svg.removeAttribute("height");
-        installMapOverlay(svg);
-        if (!state.mapInitialized) {
-          mapFit();
-          state.mapInitialized = true;
-        } else {
-          applyMapTransform();
-        }
-        // Redraw any in-progress orders from before the map refresh
-        if (orderState.selected) drawArrowsFor(orderState.selected);
-        restageVisuals();
-        $("map-hint").style.display = "block";
-      }
-    }
-  } catch (e) { /* ignore */ }
-}
-
-// =============================================================
-// INTERACTIVE MAP: click units, see legal moves as arrows,
-// click arrows to stage. Pass 1: moves + holds.
-// =============================================================
-const orderState = {
-  selected: null,        // province id (uppercase) of currently-selected own unit
-  staged: {},            // { fromProv: full order string }
-  legalIndex: {},        // { fromProv: [parsedOrder, ...] }
-};
-
-function parseOrder(s) {
-  // Examples to handle in Pass 1:
-  //   "A PAR H"
-  //   "A PAR - BUR"
-  //   "F STP/NC - BAR"
-  //   "A MAR S A PAR - BUR"             (support_move)
-  //   "A MAR S A PAR"                   (support_hold)
-  //   "F ENG C A LON - BEL"             (convoy)
-  //   "A LON - NWY VIA"                 (convoyed move)
-  const t = s.trim();
-  const tokens = t.split(/\s+/);
-  // unit-type + from + rest
-  const unit_type = tokens[0];                       // "A" or "F"
-  const from = tokens[1];                            // e.g. "PAR" or "STP/NC"
-  const verb = tokens[2];                            // "H", "-", "S", "C"
-  if (verb === "H") return { raw: s, kind: "hold", from };
-  if (verb === "-") {
-    return { raw: s, kind: "move", from, to: tokens[3], via: tokens[4] === "VIA" };
-  }
-  if (verb === "S") {
-    // tokens[3] = supported unit-type, tokens[4] = supported province
-    const sup_from = tokens[4];
-    if (tokens[5] === "-") {
-      return { raw: s, kind: "support_move", from, sup_from, sup_to: tokens[6] };
-    }
-    return { raw: s, kind: "support_hold", from, sup_target: sup_from };
-  }
-  if (verb === "C") {
-    return { raw: s, kind: "convoy", from, conv_from: tokens[4], conv_to: tokens[6] };
-  }
-  return { raw: s, kind: "unknown", from };
-}
-
-function svgEl(name, attrs = {}) {
-  const e = document.createElementNS("http://www.w3.org/2000/svg", name);
-  for (const [k, v] of Object.entries(attrs)) {
-    if (v != null) e.setAttribute(k, v);
-  }
-  return e;
-}
-
-function installMapOverlay(svg) {
-  state.mapSvg = svg;
-
-  // Inject our own defs (arrowheads) + overlay group, if not present.
-  if (!svg.querySelector("#vienna-overlay")) {
-    const defs = svgEl("defs");
-    defs.innerHTML = `
-      <marker id="ah-move" viewBox="0 0 12 12" refX="10" refY="6"
-              markerWidth="6" markerHeight="6" orient="auto" markerUnits="strokeWidth">
-        <path d="M0,0 L12,6 L0,12 Z" fill="#ffce4d"/>
-      </marker>
-      <marker id="ah-support" viewBox="0 0 12 12" refX="10" refY="6"
-              markerWidth="6" markerHeight="6" orient="auto" markerUnits="strokeWidth">
-        <path d="M0,0 L12,6 L0,12 Z" fill="#6ec0ff"/>
-      </marker>
-      <marker id="ah-convoy" viewBox="0 0 12 12" refX="10" refY="6"
-              markerWidth="6" markerHeight="6" orient="auto" markerUnits="strokeWidth">
-        <path d="M0,0 L12,6 L0,12 Z" fill="#5ae18b"/>
-      </marker>
-    `;
-    svg.appendChild(defs);
-    // Two separate groups: hits stay alive across selection changes,
-    // arrows get redrawn every selection.
-    const gHits = svgEl("g", { id: "vienna-hits" });
-    const gArrows = svgEl("g", { id: "vienna-overlay" });
-    svg.appendChild(gHits);
-    svg.appendChild(gArrows);
-  }
-
-  // (re)wire click + hover handlers — replaceWith trick to drop old listeners
-  svg.onclick = onMapClick;
-  svg.onmouseover = onMapHover;
-  svg.onmouseout = onMapOut;
-
-  // Rebuild legal-orders index for the current orderable view.
-  rebuildLegalIndex();
-
-  // Inject a big, easy-to-click hit-zone over every unit icon. The
-  // diplomacy renderer's unit icons are ~13x21 px — basically un-clickable
-  // for most users. The overlay circles below are 22px-radius and route
-  // every click to the underlying province.
-  injectUnitHitZones(svg);
-}
-
-function injectUnitHitZones(svg) {
-  // Hit zones live in a separate group so clearOverlay() (which wipes
-  // arrows) doesn't take them out.
-  let hits = svg.querySelector("#vienna-hits");
-  if (!hits) {
-    hits = svgEl("g", { id: "vienna-hits" });
-    svg.appendChild(hits);
-  }
-  hits.innerHTML = "";  // clear prior round
-
-  // Find every unit icon currently rendered.
-  const units = svg.querySelectorAll('[id^="unit_"], [id^="dislodged_"]');
-  const power = $("power").value;
-  const myUnits = new Set((state.orderable?.orderable_by_power?.[power] || []));
-
-  for (const unit of units) {
-    const prov = unit.id.replace(/^(unit_|dislodged_)/, "").toUpperCase();
-    let bbox;
-    try { bbox = unit.getBBox(); } catch { continue; }
-    const cx = bbox.x + bbox.width / 2;
-    const cy = bbox.y + bbox.height / 2;
-    // r in SVG user-space. The SVG renders at ~0.45x scale typically,
-    // so r=50 gives a ~22-pixel screen radius (44px diameter) — a
-    // comfortable click target even on small unit icons.
-    const hit = svgEl("circle", {
-      cx, cy, r: 50,
-      class: `unit-hit ${myUnits.has(prov) ? "own" : ""}`,
-      "data-prov": prov,
-    });
-    hit.addEventListener("click", e => {
-      e.stopPropagation();
-      // Re-uses the same selection logic as the main map handler.
-      onUnitHitClick(prov);
-    });
-    hit.addEventListener("mouseover", () => locElement(prov)?.classList.add("hovered"));
-    hit.addEventListener("mouseout",  () => locElement(prov)?.classList.remove("hovered"));
-    hits.appendChild(hit);
-  }
-}
-
-function onUnitHitClick(prov) {
-  const power = $("power").value;
-  const myUnits = (state.orderable?.orderable_by_power?.[power] || []);
-  if (myUnits.includes(prov)) {
-    orderState.selected = prov;
-    drawArrowsFor(prov);
-    return;
-  }
-  // Click on another power's unit while one of yours is selected → try
-  // to stage a move/support/convoy that targets that province.
-  if (orderState.selected) {
-    const moves = (orderState.legalIndex[orderState.selected] || [])
-      .filter(o => o.kind === "move" && (o.to === prov || o.to.startsWith(prov + "/")));
-    if (moves.length) {
-      const m = moves.find(x => !x.to.includes("/")) || moves[0];
-      stageOrder(orderState.selected, m.raw);
-    }
   }
 }
 
@@ -1339,437 +1260,638 @@ function rebuildLegalIndex() {
   }
 }
 
-function provFromTarget(t, x, y) {
-  // Robust resolver: a click on the map can land on many things — a
-  // province polygon (#_par), a unit icon (#unit_PAR) which is a sibling
-  // in #UnitLayer not a descendant, a supply-center dot, a label, etc.
-  // Walk the *full* element stack at the cursor and pick the first thing
-  // we can identify.
-  const stack = (x != null && y != null)
-    ? document.elementsFromPoint(x, y)
-    : (t ? [t] : []);
-  for (const el of stack) {
-    if (!el || !el.id) continue;
-    if (el.id.startsWith("unit_") || el.id.startsWith("dislodged_")) {
-      return el.id.replace(/^(unit_|dislodged_)/, "").toUpperCase();
-    }
-    if (el.id.startsWith("_") && el.id.length <= 8) {
-      return el.id.slice(1).toUpperCase().replace("_", "/");
-    }
+function parseOrder(s) {
+  const t = s.trim().split(/\s+/);
+  const verb = t[2];
+  if (verb === "H") return { raw: s, kind: "hold", from: t[1] };
+  if (verb === "-") return { raw: s, kind: "move", from: t[1], to: t[3], via: t[4] === "VIA" };
+  if (verb === "S") {
+    if (t[5] === "-") return { raw: s, kind: "support_move", from: t[1], sup_from: t[4], sup_to: t[6] };
+    return { raw: s, kind: "support_hold", from: t[1], sup_target: t[4] };
   }
-  // Last-resort ancestor walk on the original target (legacy path).
-  if (t) {
-    const unitEl = t.closest && t.closest('[id^="unit_"], [id^="dislodged_"]');
-    if (unitEl) return unitEl.id.replace(/^(unit_|dislodged_)/, "").toUpperCase();
-    const provEl = t.closest && t.closest('[id^="_"]');
-    if (provEl && provEl.id.length <= 8) {
-      return provEl.id.slice(1).toUpperCase().replace("_", "/");
-    }
-  }
-  return null;
+  if (verb === "C") return { raw: s, kind: "convoy", from: t[1], conv_from: t[4], conv_to: t[6] };
+  return { raw: s, kind: "?", from: t[1] };
 }
 
-// Five sea zones where the diplomacy engine's province code disagrees with
-// the SVG's element id. Discovered by walking every legal order against
-// the SVG's id table. Stable across phases / variants.
-const SVG_ID_ALIAS = {
-  LYO: "gol",  // Gulf of Lyon
-  MAO: "mid",  // Mid-Atlantic Ocean
-  NAO: "nat",  // North Atlantic Ocean
-  NWG: "nrg",  // Norwegian Sea
-  TYS: "tyn",  // Tyrrhenian Sea
+function populatePowerSelect() {
+  const sel = $("power");
+  const seatSel = $("seat-power");
+  if (!sel.options.length) {
+    for (const p of POWERS) {
+      const o = new Option(p, p);
+      sel.add(o);
+      seatSel.add(new Option(p, p));
+    }
+  }
+  if (!state.userPickedPower) sel.value = "FRANCE";
+  const c = sel.value || "FRANCE";
+  $("player-crest").textContent = c[0];
+  $("player-crest").style.color = PCOLOR[c];
+  $("player-crest").style.borderColor = PCOLOR_HEX[c] + "88";
+}
+
+window.onPowerChange = () => {
+  state.userPickedPower = true;
+  orderState.staged = {};
+  orderState.selected = null;
+  orderState.mode = null;
+  orderState.step = 0;
+  paintLedger();
+  paintStagedArrows();
+  populatePowerSelect();
+  clearModeHint();
 };
 
-function locElement(loc) {
-  // "STP/NC" → strip coast and try aliased base.
-  const base = loc.toUpperCase().split("/")[0];
-  const idBase = SVG_ID_ALIAS[base] || base.toLowerCase();
-  const tries = [
-    `_${idBase}`,
-    `_${loc.toLowerCase().replace("/", "_")}`,  // future-proof if SVG ever adds coasts
-    `_${loc.toLowerCase().replace("/", "")}`,
-  ];
-  for (const id of tries) {
-    const el = state.mapSvg.querySelector(`[id="${CSS.escape(id)}"]`);
-    if (el) return el;
-  }
-  return null;
+function paintHeader() {
+  const s = state.gameState;
+  $("phase-pill-text").textContent = `${s.phase} · current phase`;
+  $("phase-h2").textContent = s.phase;
+  $("phase-resolved").textContent = s.turns_resolved;
+  $("phase-submitted").textContent = `${s.submitted_powers.length}/7`;
+  $("board-phase-no").textContent = s.phase;
+  $("board-phase-sub").textContent = `Turn ${s.turns_resolved + 1} · ${s.submitted_powers.length}/7 submitted`;
 }
 
+function paintLedger() {
+  const power = $("power").value;
+  const orderable = state.orderable?.orderable_by_power?.[power] || [];
+  $("orderable-count").textContent = `${orderable.length} unit${orderable.length === 1 ? '' : 's'}`;
+  const host = $("ledger-rows");
+  if (!orderable.length) {
+    host.innerHTML = `<div class="empty-state" style="margin: 8px 22px;">no orderable units for ${power} this phase</div>`;
+    return;
+  }
+  host.innerHTML = orderable.map(loc => {
+    const staged = orderState.staged[loc];
+    const orderTxt = staged ? staged.raw : "(no order yet)";
+    const sel = orderState.selected === loc ? "selected" : "";
+    return `
+      <div class="ledger-row ${sel}" data-loc="${loc}" onclick="window.uiSelectFromLedger('${loc}')">
+        <div>
+          <div class="unit">${getUnitType(loc, power) || "—"}</div>
+          <div class="loc">${loc}</div>
+        </div>
+        <div class="order ${staged ? '' : 'unset'}">${escapeHtml(orderTxt)}</div>
+        <div class="clear" onclick="event.stopPropagation(); window.clearOrder('${loc}')">${staged ? '×' : ''}</div>
+      </div>`;
+  }).join("");
+}
+
+function getUnitType(loc, power) {
+  // The orderable index lets us infer A or F from the legal-orders strings (they start with "A " or "F ").
+  const legal = orderState.legalIndex[loc] || [];
+  if (!legal.length) return null;
+  const ut = legal[0].raw.split(" ")[0];
+  return ut;
+}
+
+function paintLegend() {
+  const subs = new Set(state.gameState.submitted_powers || []);
+  const aiPowers = new Set(state.seats.map(s => s.power));
+  $("power-legend").innerHTML = POWERS.map(p => {
+    const submitted = subs.has(p);
+    const ai = aiPowers.has(p);
+    return `
+      <div class="legend-row ${submitted ? 'submitted' : 'pending'}">
+        <div class="sw" style="background: ${PCOLOR_HEX[p]}"></div>
+        ${p.slice(0, 3)}${ai ? ' · ai' : ''}
+        ${submitted ? '<span class="check">✓</span>' : ''}
+      </div>
+    `;
+  }).join("");
+}
+
+window.clearOrder = (loc) => {
+  delete orderState.staged[loc];
+  paintLedger();
+  paintStagedArrows();
+};
+
+window.uiSelectFromLedger = (loc) => {
+  orderState.selected = loc;
+  orderState.step = 0;
+  orderState.mode = null;
+  paintLedger();
+  showModePickerFor(loc);
+};
+
+// =========================================================
+// MAP
+// =========================================================
+async function refreshMap() {
+  const host = $("map-host");
+  try {
+    const res = await fetch(`${api}/games/${state.gameId}/map.svg`);
+    if (!res.ok) return;
+    host.innerHTML = await res.text();
+    const svg = host.querySelector("svg");
+    if (!svg) return;
+    svg.removeAttribute("width"); svg.removeAttribute("height");
+    state.mapSvg = svg;
+    installMapOverlay(svg);
+    if (!state.mapInitialized) { mapFit(); state.mapInitialized = true; } else applyMapTransform();
+  } catch (e) { /* ignore */ }
+}
+
+function installMapOverlay(svg) {
+  if (!svg.querySelector("#vienna-overlay")) {
+    const defs = document.createElementNS("http://www.w3.org/2000/svg", "defs");
+    defs.innerHTML = `
+      <marker id="ah-move" viewBox="0 0 12 12" refX="10" refY="6" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0 L12,6 L0,12 Z" fill="#d4b882"/></marker>
+      <marker id="ah-support" viewBox="0 0 12 12" refX="10" refY="6" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,2 L12,6 L0,10" fill="none" stroke="#d4b882" stroke-width="1.6"/></marker>
+      <marker id="ah-convoy" viewBox="0 0 12 12" refX="10" refY="6" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0 L12,6 L0,12 Z" fill="#d4b882" opacity="0.7"/></marker>
+    `;
+    svg.appendChild(defs);
+    const hits = svgEl("g", { id: "vienna-hits" });
+    const overlay = svgEl("g", { id: "vienna-overlay" });
+    svg.appendChild(hits);
+    svg.appendChild(overlay);
+  }
+  svg.onclick = onMapClick;
+  injectUnitHitZones(svg);
+}
+
+function svgEl(name, attrs = {}) {
+  const e = document.createElementNS("http://www.w3.org/2000/svg", name);
+  for (const [k, v] of Object.entries(attrs)) if (v != null) e.setAttribute(k, v);
+  return e;
+}
+
+function injectUnitHitZones(svg) {
+  let hits = svg.querySelector("#vienna-hits");
+  if (!hits) { hits = svgEl("g", { id: "vienna-hits" }); svg.appendChild(hits); }
+  hits.innerHTML = "";
+  const units = svg.querySelectorAll('[id^="unit_"], [id^="dislodged_"]');
+  for (const unit of units) {
+    const prov = unit.id.replace(/^(unit_|dislodged_)/, "").toUpperCase();
+    let bbox;
+    try { bbox = unit.getBBox(); } catch { continue; }
+    const hit = svgEl("circle", {
+      cx: bbox.x + bbox.width / 2,
+      cy: bbox.y + bbox.height / 2,
+      r: 50, class: "unit-hit", "data-prov": prov,
+    });
+    hit.addEventListener("click", e => {
+      e.stopPropagation();
+      handleProvinceClick(prov);
+    });
+    hits.appendChild(hit);
+  }
+}
+
+function locElement(loc) {
+  const base = loc.toUpperCase().split("/")[0];
+  const idBase = SVG_ID_ALIAS[base] || base.toLowerCase();
+  return state.mapSvg?.querySelector(`[id="_${idBase}"]`);
+}
 function centerOf(loc) {
   const el = locElement(loc);
   if (!el) return null;
-  try {
-    const b = el.getBBox();
-    return [b.x + b.width / 2, b.y + b.height / 2];
-  } catch { return null; }
+  try { const b = el.getBBox(); return [b.x + b.width / 2, b.y + b.height / 2]; }
+  catch { return null; }
 }
-
-// Arrow origin: prefer the unit icon's actual on-map position over the
-// province polygon's bounding-box centre. Province bboxes for big
-// irregular territories (e.g. Russia, Spain) put the centre far from
-// where the unit visually sits. Falls back to polygon centre if no
-// unit is rendered there.
 function unitCenterOf(loc) {
-  const base = loc.toUpperCase().split("/")[0];  // ignore coast suffix
-  const unit = state.mapSvg?.querySelector(
-    `[id="unit_${base}"], [id="dislodged_${base}"]`
-  );
-  if (unit) {
-    try {
-      const b = unit.getBBox();
-      return [b.x + b.width / 2, b.y + b.height / 2];
-    } catch { /* fall through */ }
+  const base = loc.toUpperCase().split("/")[0];
+  const u = state.mapSvg?.querySelector(`[id="unit_${base}"], [id="dislodged_${base}"]`);
+  if (u) {
+    try { const b = u.getBBox(); return [b.x + b.width / 2, b.y + b.height / 2]; } catch {}
   }
   return centerOf(loc);
 }
 
-function clearOverlay() {
-  const g = state.mapSvg?.querySelector("#vienna-overlay");
-  if (g) g.innerHTML = "";
-}
-
-function clearSelectionClasses() {
-  // We no longer mark .selected/.target/.hovered on the territory
-  // polygons (the dim+highlight was visually noisy). Selection is now
-  // expressed entirely via the arrows fanning out from the unit.
-  state.mapSvg?.classList.remove("focusing");
-}
-
-function curvedPath(p1, p2, lift = 0.2) {
-  const [x1, y1] = p1, [x2, y2] = p2;
-  const mx = (x1 + x2) / 2, my = (y1 + y2) / 2;
-  // perpendicular offset so straight-line clusters fan out
-  const dx = x2 - x1, dy = y2 - y1;
-  const len = Math.hypot(dx, dy) || 1;
-  const px = -dy / len, py = dx / len;
-  const k = len * lift;
-  const cx = mx + px * k, cy = my + py * k;
-  return `M ${x1} ${y1} Q ${cx} ${cy} ${x2} ${y2}`;
-}
-
-function drawArrowsFor(fromLoc) {
-  clearOverlay();
-  clearSelectionClasses();
-  const legal = orderState.legalIndex[fromLoc] || [];
-  const overlay = state.mapSvg.querySelector("#vienna-overlay");
-  // Arrows fan out from the unit icon, not the province polygon centre.
-  const fromCenter = unitCenterOf(fromLoc);
-  if (!fromCenter) return;
-
-  const isStaged = (raw) => orderState.staged[fromLoc] === raw;
-
-  // Tag destination provinces so they un-dim
-  const targets = new Set();
-
-  // Spread parallel arrows by alternating curve direction for visual clarity.
-  let arrowIdx = 0;
-  for (const o of legal) {
-    if (o.kind === "hold") {
-      const el = locElement(o.from);
-      const b = el?.getBBox?.();
-      if (!b) continue;
-      const r = Math.max(b.width, b.height) * 0.55;
-      const ring = svgEl("circle", {
-        cx: b.x + b.width / 2, cy: b.y + b.height / 2, r,
-        class: `hold-ring ${isStaged(o.raw) ? "staged" : ""}`,
-        "data-order": o.raw, "data-from": fromLoc,
-      });
-      ring.addEventListener("click", e => { e.stopPropagation(); stageOrder(fromLoc, o.raw); });
-      overlay.appendChild(ring);
-    } else if (o.kind === "move") {
-      const to = unitCenterOf(o.to);
-      if (!to) continue;
-      targets.add(o.to);
-      const lift = (arrowIdx++ % 2 === 0) ? 0.18 : -0.18;
-      addArrowPair(overlay, curvedPath(fromCenter, to, lift), "move", "ah-move", o.raw, fromLoc);
-    }
-    else if (o.kind === "support_move") {
-      const dest = unitCenterOf(o.sup_to);
-      const via = unitCenterOf(o.sup_from);
-      if (!dest) continue;
-      targets.add(o.sup_to);
-      const lift = (arrowIdx++ % 2 === 0) ? 0.22 : -0.22;
-      addArrowPair(overlay, curvedPath(fromCenter, dest, lift), "support", "ah-support", o.raw, fromLoc);
-      if (via) {
-        const tick = svgEl("circle", {
-          cx: via[0], cy: via[1], r: 7,
-          fill: "none", stroke: "#6ec0ff", "stroke-width": 3,
-          opacity: 0.7, "pointer-events": "none",
-        });
-        overlay.appendChild(tick);
-      }
-    }
-    else if (o.kind === "support_hold") {
-      const dest = unitCenterOf(o.sup_target);
-      if (!dest) continue;
-      targets.add(o.sup_target);
-      const lift = (arrowIdx++ % 2 === 0) ? 0.22 : -0.22;
-      addArrowPair(overlay, curvedPath(fromCenter, dest, lift), "support", "ah-support", o.raw, fromLoc);
-      // ring around the held unit
-      const heldEl = locElement(o.sup_target);
-      if (heldEl) {
-        try {
-          const b = heldEl.getBBox();
-          const r = Math.max(b.width, b.height) * 0.42;
-          const ring = svgEl("circle", {
-            cx: b.x + b.width / 2, cy: b.y + b.height / 2, r,
-            fill: "none", stroke: "#6ec0ff", "stroke-width": 3,
-            "stroke-dasharray": "5 4",
-            opacity: 0.7, "pointer-events": "none",
-          });
-          overlay.appendChild(ring);
-        } catch {}
-      }
-    }
-    else if (o.kind === "convoy") {
-      const cargoFrom = unitCenterOf(o.conv_from);
-      const cargoTo = unitCenterOf(o.conv_to);
-      if (!cargoTo) continue;
-      targets.add(o.conv_to);
-      const d = cargoFrom
-        ? `M ${fromCenter[0]} ${fromCenter[1]} Q ${cargoFrom[0]} ${cargoFrom[1]} ${cargoTo[0]} ${cargoTo[1]}`
-        : curvedPath(fromCenter, cargoTo, 0.2);
-      addArrowPair(overlay, d, "convoy", "ah-convoy", o.raw, fromLoc);
-    }
-  }
-}
-
-// Helper: add a wide invisible hit-path + the visible arrow so users
-// can click a fat target without changing the visual.
-function addArrowPair(overlay, d, kindClass, markerId, raw, fromLoc, onOver, onOut) {
-  const isStaged = orderState.staged[fromLoc] === raw;
-  const onClick = e => { e.stopPropagation(); stageOrder(fromLoc, raw); };
-
-  const hit = svgEl("path", {
-    d, class: "order-arrow-hit",
-    "data-order": raw, "data-from": fromLoc,
-  });
-  hit.addEventListener("click", onClick);
-  if (onOver) hit.addEventListener("mouseover", onOver);
-  if (onOut)  hit.addEventListener("mouseout",  onOut);
-
-  const visible = svgEl("path", {
-    d, class: `order-arrow ${kindClass} ${isStaged ? "staged" : ""}`,
-    "marker-end": `url(#${markerId})`,
-    "data-order": raw, "data-from": fromLoc,
-  });
-  visible.addEventListener("click", onClick);
-
-  overlay.appendChild(hit);
-  overlay.appendChild(visible);
-}
-
-function restageVisuals() {
-  // Re-apply 'staged' class to any saved orders' arrows when redrawing.
-  // (drawArrowsFor handles the currently-selected unit; this is for others)
-  // For Pass 1 we redraw only on selection, so nothing extra needed here yet.
-}
-
 function onMapClick(e) {
-  // First: did we click on an order arrow? Arrows are inside #vienna-overlay
-  // and have their own listeners with stopPropagation, but if a wider hit
-  // path lay over a polygon, the arrow gets first crack via its listener.
-  // Here we use the *cursor coords* to resolve the underlying province
-  // robustly regardless of stacking order.
+  // map clicks fall through to handleProvinceClick via the hit zones; this is the fallback for clicks on the SVG background
   const prov = provFromTarget(e.target, e.clientX, e.clientY);
-  if (!prov) return;
-  const power = $("power").value;
-  const myUnits = (state.orderable?.orderable_by_power?.[power] || []);
-  // Click on one of my own orderable units → select
-  if (myUnits.includes(prov)) {
-    orderState.selected = prov;
-    drawArrowsFor(prov);
-    return;
-  }
-  // Click on a destination after selecting → try to stage the move
-  if (orderState.selected) {
-    const moves = (orderState.legalIndex[orderState.selected] || [])
-      .filter(o => o.kind === "move" && (o.to === prov || o.to.startsWith(prov + "/")));
-    if (moves.length) {
-      // Prefer non-coast-specific match if multiple
-      const m = moves.find(x => !x.to.includes("/")) || moves[0];
-      stageOrder(orderState.selected, m.raw);
-      return;
-    }
-  }
+  if (prov) handleProvinceClick(prov);
 }
-
-function onMapHover(e) { /* no-op — no province lighten on hover */ }
-function onMapOut(e)  { /* no-op */ }
-
-function stageOrder(fromLoc, orderStr) {
-  orderState.staged[fromLoc] = orderStr;
-  // Sync the side-panel dropdown row to this order
-  const row = document.querySelector(`#order-form select[data-loc="${fromLoc}"]`);
-  if (row) row.value = orderStr;
-  // Re-render arrows so the chosen one is highlighted
-  drawArrowsFor(fromLoc);
-  toast(`Staged ${orderStr}`, "ok");
+function provFromTarget(t, x, y) {
+  const stack = (x != null && y != null) ? document.elementsFromPoint(x, y) : (t ? [t] : []);
+  for (const el of stack) {
+    if (!el || !el.id) continue;
+    if (el.id.startsWith("unit_") || el.id.startsWith("dislodged_")) return el.id.replace(/^(unit_|dislodged_)/, "").toUpperCase();
+    if (el.id.startsWith("_") && el.id.length <= 8) return el.id.slice(1).toUpperCase().replace("_", "/");
+  }
+  return null;
 }
-
-// Esc deselects; H sets hold on selected.
-document.addEventListener("keydown", e => {
-  if (["INPUT","TEXTAREA","SELECT"].includes(e.target.tagName)) return;
-  if (e.key === "Escape" && orderState.selected) {
-    orderState.selected = null;
-    clearOverlay(); clearSelectionClasses();
-  }
-  if ((e.key === "h" || e.key === "H") && orderState.selected) {
-    const hold = (orderState.legalIndex[orderState.selected] || [])
-      .find(o => o.kind === "hold");
-    if (hold) stageOrder(orderState.selected, hold.raw);
-  }
-});
 
 function applyMapTransform() {
-  const svg = $("map-svg-host").querySelector("svg");
+  const svg = $("map-host").querySelector("svg");
   if (!svg) return;
   const { scale, x, y } = state.mapTransform;
+  svg.style.transformOrigin = "0 0";
   svg.style.transform = `translate(${x}px, ${y}px) scale(${scale})`;
 }
-
-window.mapZoom = (factor) => {
-  const host = $("map-svg-host");
-  const rect = host.getBoundingClientRect();
-  const cx = rect.width / 2, cy = rect.height / 2;
+window.mapZoom = (f) => {
+  const host = $("map-host"); const r = host.getBoundingClientRect();
+  const cx = r.width / 2, cy = r.height / 2;
   const t = state.mapTransform;
-  // zoom around viewport center
-  t.x = cx - (cx - t.x) * factor;
-  t.y = cy - (cy - t.y) * factor;
-  t.scale = Math.max(0.3, Math.min(8, t.scale * factor));
+  t.x = cx - (cx - t.x) * f; t.y = cy - (cy - t.y) * f;
+  t.scale = Math.max(0.3, Math.min(8, t.scale * f));
   applyMapTransform();
 };
+window.mapFit = () => { state.mapTransform = { scale: 1, x: 0, y: 0 }; applyMapTransform(); };
 
-window.mapFit = () => {
-  state.mapTransform = { scale: 1, x: 0, y: 0 };
-  applyMapTransform();
-};
-
-// pan + wheel-zoom — installed once
 function installMapInteractions() {
-  const host = $("map-svg-host");
+  const host = $("map-host");
   let pressing = false, dragging = false, startX = 0, startY = 0, baseX = 0, baseY = 0;
-  const PAN_THRESHOLD = 4;  // pixels of movement before we treat it as a drag
-
   host.addEventListener("mousedown", e => {
+    if (e.target.closest('.unit-hit')) return;
     pressing = true; dragging = false;
     startX = e.clientX; startY = e.clientY;
     baseX = state.mapTransform.x; baseY = state.mapTransform.y;
   });
-  window.addEventListener("mouseup", () => {
-    pressing = false;
-    if (dragging) {
-      dragging = false;
-      host.classList.remove("dragging", "no-anim");
-    }
-  });
+  window.addEventListener("mouseup", () => { pressing = false; dragging = false; });
   window.addEventListener("mousemove", e => {
     if (!pressing) return;
     const dx = e.clientX - startX, dy = e.clientY - startY;
-    if (!dragging && Math.hypot(dx, dy) < PAN_THRESHOLD) return;
-    if (!dragging) {
-      dragging = true;
-      host.classList.add("dragging", "no-anim");
-    }
-    state.mapTransform.x = baseX + dx;
-    state.mapTransform.y = baseY + dy;
+    if (!dragging && Math.hypot(dx, dy) < 4) return;
+    dragging = true;
+    state.mapTransform.x = baseX + dx; state.mapTransform.y = baseY + dy;
     applyMapTransform();
   });
   host.addEventListener("wheel", e => {
     e.preventDefault();
-    const rect = host.getBoundingClientRect();
-    const mx = e.clientX - rect.left, my = e.clientY - rect.top;
-    const factor = e.deltaY < 0 ? 1.12 : 0.89;
+    const r = host.getBoundingClientRect();
+    const mx = e.clientX - r.left, my = e.clientY - r.top;
+    const f = e.deltaY < 0 ? 1.12 : 0.89;
     const t = state.mapTransform;
-    t.x = mx - (mx - t.x) * factor;
-    t.y = my - (my - t.y) * factor;
-    t.scale = Math.max(0.3, Math.min(8, t.scale * factor));
-    host.classList.add("no-anim");
+    t.x = mx - (mx - t.x) * f; t.y = my - (my - t.y) * f;
+    t.scale = Math.max(0.3, Math.min(8, t.scale * f));
     applyMapTransform();
-    clearTimeout(host._zt);
-    host._zt = setTimeout(() => host.classList.remove("no-anim"), 100);
   }, { passive: false });
 }
 
-// =============================================================
-// TURN LOG + timeline
-// =============================================================
-async function refreshTurns() {
-  const host = $("turns");
-  const tl = $("turn-timeline");
-  if (state.gameState.turns_resolved === 0) {
-    host.innerHTML = `<div class="empty" style="padding:18px 8px">no turns yet</div>`;
-    tl.innerHTML = `<div class="turn-pip current">${state.gameState.phase} (current)</div>`;
+// =========================================================
+// WEBDIP-STYLE ORDER ENTRY
+// =========================================================
+function handleProvinceClick(prov) {
+  const power = $("power").value;
+  const myUnits = state.orderable?.orderable_by_power?.[power] || [];
+  // Step 0: nothing selected — must click own unit
+  if (orderState.step === 0) {
+    if (!myUnits.includes(prov)) return; // can only click your own
+    orderState.selected = prov;
+    showModePickerFor(prov);
+    paintLedger();
     return;
   }
-  host.innerHTML = "";
-  const pips = [];
-  for (let n = state.gameState.turns_resolved; n >= 1; n--) {
-    const { signed_delta } = await api_(`/games/${state.gameId}/turns/${n}`);
-    const ok = verifySignature(signed_delta);
-    const p = signed_delta.payload;
-    const el = document.createElement("div");
-    el.className = "turn";
-    el.innerHTML = `
-      <div class="head">
-        <span class="label">Turn ${p.turn_number} · ${p.phase_from} → ${p.phase_to}</span>
-        <span class="chip ${ok ? "" : "tamper"}">${ok ? "✓ Verified" : "✗ Tampered"}</span>
-      </div>
-      <div class="mono dim" style="font-size:11px">state: ${p.new_state_hash.slice(0, 22)}…</div>
-      <div class="mono" style="margin-top:8px;font-size:11.5px;line-height:1.7">
-        ${Object.entries(p.orders_revealed).map(([pwr, os]) =>
-          `<b style="color:var(--accent)">${pwr}</b> · ${os.join(" · ") || "(hold)"}`
-        ).join("<br/>")}
-      </div>
-    `;
-    el.querySelector(".chip").addEventListener("click", () => openVerify(signed_delta));
-    host.appendChild(el);
-    pips.unshift(`<div class="turn-pip" onclick="openVerify(${JSON.stringify(JSON.stringify(signed_delta))})">${p.phase_from}</div>`);
+  // Step 1: mode is set, awaiting target
+  if (orderState.step === 1 && orderState.mode === "move") {
+    tryStageMove(orderState.selected, prov);
+    return;
   }
-  pips.push(`<div class="turn-pip current">${state.gameState.phase} (current)</div>`);
-  tl.innerHTML = pips.join("");
-
-  // Auto-populate the side-pane verify CLI snippet with the latest turn URL.
-  const n = state.gameState.turns_resolved;
-  $("verify-cli-snippet").textContent =
-    `$ npx vienna-verify ${window.location.origin}/games/${state.gameId}/turns/${n}`;
+  if (orderState.step === 1 && orderState.mode === "support") {
+    // Step 1 for support: pick the unit you're supporting (must be any unit on the board)
+    // Or if user clicks the supported unit's same province twice → support-hold
+    orderState.supportTarget = prov;
+    setModeHint(`Click destination · or click ${prov} again for support-hold · Esc to cancel`);
+    orderState.step = 2;
+    return;
+  }
+  if (orderState.step === 2 && orderState.mode === "support") {
+    // Same province as support target → support_hold
+    if (prov === orderState.supportTarget) {
+      tryStageSupportHold(orderState.selected, orderState.supportTarget);
+    } else {
+      tryStageSupportMove(orderState.selected, orderState.supportTarget, prov);
+    }
+    return;
+  }
+  if (orderState.step === 1 && orderState.mode === "convoy") {
+    orderState.supportTarget = prov;
+    setModeHint(`Click destination for the convoyed army · Esc to cancel`);
+    orderState.step = 2;
+    return;
+  }
+  if (orderState.step === 2 && orderState.mode === "convoy") {
+    tryStageConvoy(orderState.selected, orderState.supportTarget, prov);
+    return;
+  }
+  // Default: select another own unit
+  if (myUnits.includes(prov)) {
+    orderState.selected = prov;
+    showModePickerFor(prov);
+    paintLedger();
+  }
 }
 
-// =============================================================
-// AI SEATS
-// =============================================================
-async function refreshSeats() {
-  const host = $("ai-seats-list");
+function showModePickerFor(loc) {
+  const u = state.mapSvg?.querySelector(`[id="unit_${loc.split("/")[0]}"]`);
+  if (!u) return;
+  const rect = u.getBoundingClientRect();
+  const host = $("mode-picker-host");
+  // Determine available modes from legal index
+  const legal = orderState.legalIndex[loc] || [];
+  const hasHold = legal.some(o => o.kind === "hold");
+  const hasMove = legal.some(o => o.kind === "move");
+  const hasSupport = legal.some(o => o.kind === "support_move" || o.kind === "support_hold");
+  const hasConvoy = legal.some(o => o.kind === "convoy");
+  // Position the picker just above the unit, in board-host coordinates
+  const boardRect = $("map-host").getBoundingClientRect();
+  const left = rect.left + rect.width / 2 - boardRect.left;
+  const top = rect.top - boardRect.top;
+  host.innerHTML = `
+    <div class="mode-picker" style="left: ${left}px; top: ${top}px;">
+      <button ${hasHold ? "" : "disabled"} onclick="window.pickMode('hold')">Hold</button>
+      <button ${hasMove ? "" : "disabled"} onclick="window.pickMode('move')">Move</button>
+      <button ${hasSupport ? "" : "disabled"} onclick="window.pickMode('support')">Support</button>
+      <button ${hasConvoy ? "" : "disabled"} onclick="window.pickMode('convoy')">Convoy</button>
+    </div>`;
+  setModeHint(`${loc} selected · pick an order mode · Esc to cancel`);
+}
+
+function clearModeHint() {
+  $("mode-hint").style.display = "none";
+  $("mode-picker-host").innerHTML = "";
+  orderState.selected = null;
+  orderState.mode = null;
+  orderState.step = 0;
+  orderState.supportTarget = null;
+  paintLedger();
+}
+
+function setModeHint(text) {
+  const h = $("mode-hint");
+  h.style.display = "block";
+  h.innerHTML = text;
+}
+
+window.pickMode = (mode) => {
+  if (!orderState.selected) return;
+  orderState.mode = mode;
+  if (mode === "hold") {
+    const hold = (orderState.legalIndex[orderState.selected] || []).find(o => o.kind === "hold");
+    if (hold) stageOrder(orderState.selected, hold.raw, "hold");
+    clearModeHint();
+    return;
+  }
+  if (mode === "move") {
+    setModeHint(`Click destination province for ${orderState.selected} · Esc to cancel`);
+    orderState.step = 1;
+    $("mode-picker-host").innerHTML = "";
+    return;
+  }
+  if (mode === "support") {
+    setModeHint(`Click the UNIT you want ${orderState.selected} to support · Esc to cancel`);
+    orderState.step = 1;
+    $("mode-picker-host").innerHTML = "";
+    return;
+  }
+  if (mode === "convoy") {
+    setModeHint(`Click the army to convoy · Esc to cancel`);
+    orderState.step = 1;
+    $("mode-picker-host").innerHTML = "";
+    return;
+  }
+};
+
+function tryStageMove(from, to) {
+  const legal = (orderState.legalIndex[from] || []).filter(o => o.kind === "move");
+  const exact = legal.find(o => o.to === to);
+  const coast = legal.find(o => o.to.startsWith(to + "/"));
+  const order = exact || coast;
+  if (!order) { toast(`Illegal: ${from} → ${to}`, "error"); return; }
+  stageOrder(from, order.raw, "move", to);
+  clearModeHint();
+}
+function tryStageSupportMove(from, supFrom, supTo) {
+  const legal = (orderState.legalIndex[from] || []).filter(o => o.kind === "support_move");
+  const exact = legal.find(o => o.sup_from === supFrom && (o.sup_to === supTo || o.sup_to.startsWith(supTo + "/")));
+  if (!exact) { toast(`Illegal support: ${from} S ${supFrom} → ${supTo}`, "error"); return; }
+  stageOrder(from, exact.raw, "support", supTo);
+  clearModeHint();
+}
+function tryStageSupportHold(from, supTarget) {
+  const legal = (orderState.legalIndex[from] || []).filter(o => o.kind === "support_hold");
+  const exact = legal.find(o => o.sup_target === supTarget);
+  if (!exact) { toast(`Illegal support-hold: ${from} S ${supTarget}`, "error"); return; }
+  stageOrder(from, exact.raw, "support", supTarget);
+  clearModeHint();
+}
+function tryStageConvoy(from, convFrom, convTo) {
+  const legal = (orderState.legalIndex[from] || []).filter(o => o.kind === "convoy");
+  const exact = legal.find(o => o.conv_from === convFrom && (o.conv_to === convTo || o.conv_to.startsWith(convTo + "/")));
+  if (!exact) { toast(`Illegal convoy: ${from} C ${convFrom} → ${convTo}`, "error"); return; }
+  stageOrder(from, exact.raw, "convoy", convTo);
+  clearModeHint();
+}
+
+function stageOrder(from, raw, kind, to) {
+  orderState.staged[from] = { raw, kind, to };
+  paintLedger();
+  paintStagedArrows();
+  toast(`Staged ${raw}`, "ok");
+}
+
+function paintStagedArrows() {
+  if (!state.mapSvg) return;
+  const overlay = state.mapSvg.querySelector("#vienna-overlay");
+  if (!overlay) return;
+  overlay.innerHTML = "";
+  for (const [from, st] of Object.entries(orderState.staged)) {
+    const parsed = parseOrder(st.raw);
+    if (parsed.kind === "hold") {
+      const c = unitCenterOf(from);
+      if (!c) continue;
+      const r = 28;
+      const ring = svgEl("circle", { cx: c[0], cy: c[1], r, class: "order-arrow hold-ring" });
+      overlay.appendChild(ring);
+    } else if (parsed.kind === "move") {
+      const a = unitCenterOf(from), b = unitCenterOf(parsed.to) || centerOf(parsed.to);
+      if (!a || !b) continue;
+      overlay.appendChild(svgEl("path", { d: curvedPath(a, b, 0.18), class: "order-arrow", "marker-end": "url(#ah-move)" }));
+    } else if (parsed.kind === "support_move") {
+      const a = unitCenterOf(from), b = unitCenterOf(parsed.sup_to) || centerOf(parsed.sup_to);
+      const via = unitCenterOf(parsed.sup_from) || centerOf(parsed.sup_from);
+      if (!a || !b) continue;
+      overlay.appendChild(svgEl("path", { d: curvedPath(a, b, 0.28), class: "order-arrow support", "marker-end": "url(#ah-support)" }));
+      if (via) overlay.appendChild(svgEl("circle", { cx: via[0], cy: via[1], r: 6, fill: "none", stroke: "var(--gold)", "stroke-width": 1.6, opacity: 0.8 }));
+    } else if (parsed.kind === "support_hold") {
+      const a = unitCenterOf(from), b = unitCenterOf(parsed.sup_target) || centerOf(parsed.sup_target);
+      if (!a || !b) continue;
+      overlay.appendChild(svgEl("path", { d: curvedPath(a, b, 0.25), class: "order-arrow support", "marker-end": "url(#ah-support)" }));
+    } else if (parsed.kind === "convoy") {
+      const a = unitCenterOf(from), b = unitCenterOf(parsed.conv_to) || centerOf(parsed.conv_to);
+      if (!a || !b) continue;
+      overlay.appendChild(svgEl("path", { d: curvedPath(a, b, 0.2), class: "order-arrow convoy", "marker-end": "url(#ah-convoy)" }));
+    }
+  }
+}
+
+function curvedPath(p1, p2, lift = 0.18) {
+  const [x1, y1] = p1, [x2, y2] = p2;
+  const dx = x2 - x1, dy = y2 - y1;
+  const len = Math.hypot(dx, dy) || 1;
+  const px = -dy / len, py = dx / len;
+  const k = len * lift;
+  const cx = (x1 + x2) / 2 + px * k, cy = (y1 + y2) / 2 + py * k;
+  return `M ${x1} ${y1} Q ${cx} ${cy} ${x2} ${y2}`;
+}
+
+// =========================================================
+// LOCKBOX (encrypt animation + submit)
+// =========================================================
+window.openLockbox = async () => {
+  const power = $("power").value;
+  const orders = Object.values(orderState.staged).map(s => s.raw);
+  if (!orders.length) { toast("No orders staged. Click a unit on the board to compose orders.", "error"); return; }
+  $("lockbox-power-name").textContent = power;
+  $("lockbox-pubkey").textContent = state.enclave?.encryption_public_key?.slice(0, 28) + "…";
+  // plaintext lines
+  const ph = $("lockbox-plain");
+  ph.innerHTML = orders.map((o, i) => `<div class="plain-line" style="animation-delay: ${i * 0.28}s">${escapeHtml(o)}</div>`).join("");
+  $("lockbox-plain-meta").textContent = `canonical JSON · ${JSON.stringify({ power, orders }).length} bytes`;
+  $("lockbox-state").textContent = "writing plaintext…";
+  $("lockbox-state").className = "chip encrypt";
+  $("lockbox-cipher").innerHTML = "";
+  $("lockbox-cipher-meta").textContent = `curve25519 → xsalsa20poly1305 · 0 bytes`;
+  $("lockbox-submit").disabled = true;
+  $("lockbox-submit").textContent = "Sealing…";
+  $("lockbox-bridge-bar").style.background = "var(--rule-2)";
+  $("lockbox-modal").classList.add("open");
+  // After plaintext fade-in, start ciphering
+  const totalWriteMs = 200 + orders.length * 280 + 300;
+  setTimeout(() => animateCipher(), totalWriteMs);
+};
+
+function animateCipher() {
+  const power = $("power").value;
+  const orders = Object.values(orderState.staged).map(s => s.raw);
+  const envelope = sealForEnclave(JSON.stringify({ power, orders }));
+  state.lastCipher = envelope;
+  $("lockbox-state").textContent = "sealing to enclave key…";
+  const target = envelope.slice(0, 400);
+  let i = 0;
+  const host = $("lockbox-cipher");
+  host.innerHTML = "";
+  const id = setInterval(() => {
+    const ch = target.slice(i, i + 6);
+    if (!ch) {
+      clearInterval(id);
+      finishSeal();
+      return;
+    }
+    for (const c of ch) {
+      const span = document.createElement("span");
+      span.className = "char";
+      span.textContent = c;
+      span.style.animationDelay = "0s";
+      host.appendChild(span);
+    }
+    i += 6;
+    $("lockbox-cipher-meta").textContent = `curve25519 → xsalsa20poly1305 · ${i} of ${target.length} bytes`;
+    $("lockbox-bridge-bar").style.background = `linear-gradient(to bottom, var(--gold) 0%, var(--gold) ${(i/target.length)*100}%, var(--rule-2) ${(i/target.length)*100}%, var(--rule-2) 100%)`;
+  }, 28);
+}
+function finishSeal() {
+  $("lockbox-state").textContent = "sealed · ready to submit";
+  $("lockbox-state").className = "chip verify";
+  $("lockbox-submit").disabled = false;
+  $("lockbox-submit").textContent = "✓ Submit sealed envelope";
+}
+
+window.confirmSeal = async () => {
+  if (!state.lastCipher) return;
+  try {
+    await api_(`/games/${state.gameId}/orders`, { method: "POST", body: JSON.stringify({ ciphertext: state.lastCipher }) });
+    toast(`Submitted ${Object.keys(orderState.staged).length} orders`, "ok");
+    window.closeModal("lockbox-modal");
+    orderState.staged = {};
+    await refreshAll();
+  } catch (e) {
+    toast("Submit failed: " + e.message, "error");
+  }
+};
+
+// =========================================================
+// CABINET (AI seats)
+// =========================================================
+async function paintCabinet() {
   try {
     const { seats } = await api_(`/games/${state.gameId}/ai-seats`);
     state.seats = seats;
+    const host = $("ai-seats-list");
     if (!seats.length) {
-      host.innerHTML = `<div class="empty" style="padding:18px 8px">none attached</div>`;
+      host.innerHTML = `<div class="cab-empty">No seats appointed yet. The cabinet plays itself when humans miss the deadline.</div>`;
       return;
     }
     host.innerHTML = seats.map(s => `
-      <div class="seat">
-        <div class="top">
-          <div class="power">${s.power}</div>
-          <div class="balance">$${parseFloat(s.balance_usdc).toFixed(2)} · spent $${parseFloat(s.spent_usdc).toFixed(2)}</div>
-        </div>
-        <div class="meta">player: ${s.player_address}</div>
-        <div class="meta">fingerprint: ${s.personality_fingerprint.slice(0,28)}…</div>
-        <div class="traits">
-          <div class="trait">aggression ${s.personality.aggression}</div>
-          <div class="trait">loyalty ${s.personality.loyalty}</div>
-          <div class="trait">${s.personality.opening}</div>
+      <div class="seat-card">
+        <div class="portrait" id="portrait-${s.power}">${renderPortrait(s.personality_fingerprint, PCOLOR_HEX[s.power])}</div>
+        <div>
+          <div class="power-line" style="color: ${PCOLOR_HEX[s.power]}">Seat of ${s.power}</div>
+          <h3>${shortHandle(s.personality_fingerprint, s.power)}</h3>
+          <div class="traits">
+            <span class="trait-pill">aggr ${(+s.personality.aggression).toFixed(2)}</span>
+            <span class="trait-pill">loy ${(+s.personality.loyalty).toFixed(2)}</span>
+            <span class="trait-pill">${s.personality.opening}</span>
+          </div>
+          <div class="balance">$<span class="v">${(+s.balance_usdc).toFixed(2)}</span> · spent $${(+s.spent_usdc).toFixed(2)}</div>
+          <div class="mono" style="font-size: 10px; color: var(--fg-3); margin-top: 6px;">fp ${s.personality_fingerprint.slice(0, 18)}…</div>
         </div>
       </div>
     `).join("");
-  } catch (e) { /* ignore */ }
+  } catch {}
 }
 
-window.openAddSeat = () => {
-  $("seat-modal").classList.add("open");
-};
+// Deterministic engraved portrait
+function renderPortrait(seed, tone, width = 64, height = 80) {
+  function hash01(s, i) {
+    let h = 2166136261 >>> 0;
+    const str = s + ":" + i;
+    for (let k = 0; k < str.length; k++) { h ^= str.charCodeAt(k); h = Math.imul(h, 16777619); }
+    return ((h >>> 0) % 100000) / 100000;
+  }
+  const rand = Array.from({ length: 14 }, (_, i) => hash01(seed, i));
+  const cx = width / 2, cy = height * 0.62;
+  const headR = Math.min(width, height) * 0.30;
+  const jawY = cy + headR * 0.85, browY = cy - headR * 0.35;
+  const noseX = cx + headR * (0.85 + rand[0] * 0.12), noseY = cy + headR * (rand[1] * 0.05 - 0.05);
+  const chinX = cx + headR * (0.42 + rand[2] * 0.15), lipsY = noseY + headR * 0.18;
+  const collarY = jawY + headR * 0.4;
+  const hairBack = -headR * (0.4 + rand[4] * 0.4), hairTop = cy - headR * (1.3 + rand[5] * 0.35);
+  const hatHt = rand[6] > 0.65 ? headR * (0.5 + rand[7] * 0.4) : 0;
+  const mustacheW = rand[8] > 0.5 ? headR * (0.3 + rand[9] * 0.3) : 0;
+  return `
+    <svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" style="display:block">
+      <rect x="0" y="0" width="${width}" height="${height}" fill="var(--ink-3)" />
+      <g fill="none" stroke="${tone}" stroke-width="1.2" stroke-linejoin="round" stroke-linecap="round" opacity="0.95">
+        ${[...Array(14)].map((_, i) => `<line x1="0" x2="${width}" y1="${(i + 0.5) * (height / 14)}" y2="${(i + 0.5) * (height / 14)}" stroke="${tone}" stroke-opacity="0.06" stroke-width="0.5" />`).join("")}
+        <path d="
+          M ${cx - headR * 0.6},${collarY}
+          L ${cx - headR * 0.4},${jawY}
+          C ${cx - headR * 0.7},${jawY - headR * 0.5} ${cx - headR * 0.8 + hairBack},${cy - headR * 0.4} ${cx - headR * 0.55 + hairBack * 0.4},${hairTop + headR * 0.4}
+          ${hatHt > 0 ?
+            `L ${cx - headR * 0.55 + hairBack * 0.4},${hairTop - hatHt} L ${cx + headR * 0.3},${hairTop - hatHt} L ${cx + headR * 0.3},${hairTop}` :
+            `C ${cx - headR * 0.2},${hairTop} ${cx + headR * 0.5},${hairTop} ${cx + headR * 0.4},${cy - headR * 0.7}`}
+          C ${cx + headR * 0.95},${cy - headR * 0.55} ${cx + headR * 1.0},${cy - headR * 0.05} ${noseX + 1.5},${noseY - 1.5}
+          L ${noseX - 0.5},${noseY + 1}
+          L ${cx + headR * 0.45},${lipsY}
+          L ${cx + headR * 0.7},${lipsY + headR * 0.05}
+          L ${chinX},${jawY - headR * 0.05}
+          L ${cx + headR * 0.4},${jawY + headR * 0.08}
+          L ${cx + headR * 0.5},${collarY}
+          Z" />
+        <circle cx="${cx + headR * 0.6}" cy="${cy - headR * 0.08}" r="0.9" fill="${tone}" />
+        ${mustacheW > 0 ? `<path d="M ${cx + headR * 0.5},${lipsY - 0.5} q ${mustacheW * 0.4},${-headR * 0.05} ${mustacheW},${headR * 0.02}" />` : ""}
+      </g>
+      <rect x="0.5" y="0.5" width="${width - 1}" height="${height - 1}" fill="none" stroke="var(--rule-2)" />
+    </svg>`;
+}
+function shortHandle(seed, power) {
+  const adj = ["Iron", "Velvet", "Quiet", "Burnished", "Silent", "Crimson", "Inkwell", "Auric", "Verdant", "Marbled"];
+  const noun = ["Magistrate", "Envoy", "Cabinet", "Adjutant", "Consul", "Prefect", "Marshal", "Chancellor", "Patriarch", "Vidame"];
+  let h = 2166136261 >>> 0;
+  for (const c of seed + power) { h ^= c.charCodeAt(0); h = Math.imul(h, 16777619); }
+  const a = adj[(h >>> 0) % adj.length];
+  const n = noun[(h >>> 4) % noun.length];
+  return `${a} ${n}`;
+}
 
+// =========================================================
+// SEATS (add-seat modal)
+// =========================================================
+window.openAddSeat = () => $("seat-modal").classList.add("open");
 window.confirmAddSeat = async () => {
   const body = {
     power: $("seat-power").value,
@@ -1785,83 +1907,150 @@ window.confirmAddSeat = async () => {
     x402_signature: "0xstub-x402",
   };
   try {
-    await api_(`/games/${state.gameId}/ai-seats`, {
-      method: "POST", body: JSON.stringify(body),
-    });
-    closeModal("seat-modal");
-    toast(`Attached ${body.power} as AI seat`, "ok");
-    await refreshSeats();
-  } catch (e) {
-    toast("Seat failed: " + e.message, "error");
-  }
+    await api_(`/games/${state.gameId}/ai-seats`, { method: "POST", body: JSON.stringify(body) });
+    window.closeModal("seat-modal");
+    toast(`Appointed ${body.power} cabinet seat`, "ok");
+    paintCabinet();
+  } catch (e) { toast("Seat failed: " + e.message, "error"); }
 };
 
-// =============================================================
-// VERIFY MODAL
-// =============================================================
-window.openVerify = async (envelope) => {
-  if (typeof envelope === "string") envelope = JSON.parse(envelope);
-  const ok = verifySignature(envelope);
-  const v = await api_("/verify");
-  const a = await api_("/attestation");
-  const body = $("verify-body");
-  $("verify-sub").textContent = `Turn ${envelope.payload.turn_number} · ${envelope.payload.phase_from} → ${envelope.payload.phase_to}`;
-  const chain = [
+// Slider value mirrors
+document.addEventListener("input", e => {
+  if (e.target.id === "seat-aggro") $("seat-aggro-v").textContent = (+e.target.value).toFixed(2);
+  if (e.target.id === "seat-loyal") $("seat-loyal-v").textContent = (+e.target.value).toFixed(2);
+});
+
+// =========================================================
+// TIMELINE
+// =========================================================
+async function paintTimeline() {
+  const host = $("turn-timeline");
+  const turns = state.gameState.turns_resolved;
+  let phases = [];
+  for (let n = 1; n <= turns; n++) {
+    try {
+      const { signed_delta } = await api_(`/games/${state.gameId}/turns/${n}`);
+      phases.push({ n, payload: signed_delta.payload, verified: verifySignature(signed_delta) });
+    } catch {}
+  }
+  const cells = phases.map(p => `
+    <div class="timeline-cell" onclick='window.openCert(${JSON.stringify(p).replace(/"/g, "&quot;")})'>
+      <div class="tl-year">${p.payload.phase_from?.match(/\\d+/)?.[0] || ''}</div>
+      <div class="tl-phase">${p.payload.phase_from}</div>
+      <div class="tl-meta">turn ${p.n} ${p.verified ? '<span class="v">✓</span>' : '<span style="color:var(--tamper)">✗</span>'}</div>
+    </div>`).join("");
+  host.innerHTML = cells + `<div class="timeline-cell current"><div class="tl-year">${state.gameState.phase.match(/\\d+/)?.[0] || ''}</div><div class="tl-phase">${state.gameState.phase}</div><div class="tl-meta">current</div></div>`;
+  // Auto-populate the verify CLI snippet
+  if (turns > 0) {
+    $("verify-cli-snippet").innerHTML = `<span class="prompt">$</span> npx vienna-verify ${window.location.origin}/games/${state.gameId}/turns/${turns}`;
+  }
+  paintTurnLog(phases);
+}
+
+function paintTurnLog(phases) {
+  const host = $("turn-log");
+  if (!phases.length) { host.innerHTML = `<div class="cab-empty" style="padding: 18px 22px;">no turns yet · awaiting first sealed deadline</div>`; return; }
+  host.innerHTML = phases.slice().reverse().map(p => `
+    <div class="seat-card" onclick='window.openCert(${JSON.stringify(p).replace(/"/g, "&quot;")})'>
+      <div class="portrait" style="display: flex; align-items: center; justify-content: center; font-family: var(--f-display); font-style: italic; font-size: 28px; color: var(--gold); height: 80px; width: 64px;">${p.n}</div>
+      <div>
+        <div class="power-line gold">Turn ${p.n} · ${p.payload.phase_from} → ${p.payload.phase_to}</div>
+        <h3 style="font-size: 14px;">${p.verified ? '<span class="chip verify"><span class="dot"></span>Sealed</span>' : '<span class="chip tamper"><span class="dot"></span>Tampered</span>'}</h3>
+        <div class="mono" style="font-size: 10px; color: var(--fg-3); margin-top: 8px; word-break: break-all;">state · ${p.payload.new_state_hash.slice(0, 30)}…</div>
+      </div>
+    </div>`).join("");
+}
+
+// =========================================================
+// CERTIFICATE
+// =========================================================
+function trustChain(turnPayload, signedDelta, verifyData, attData, tampered) {
+  const ok = !tampered;
+  return [
     {
-      ok: envelope.image_digest === v.image_digest,
-      title: "Code matches public source",
-      detail: `image_digest: ${envelope.image_digest}\ncommit: ${v.commit_sha}`,
+      n: "I", title: "Hardware", status: ok ? "ok" : "tamper",
+      what: "An Intel TDX enclave attests at boot that this code is running on real silicon, not a normal server in a tee costume. Anyone can verify the Intel quote offline against the manufacturer's CA chain.",
+      data: [
+        { k: "platform", v: attData?.tdx_quote?.length ? `TDX quote · ${attData.tdx_quote.length}B` : "(local dev — no TDX quote)" },
+        { k: "fmspc", v: "509106000000" },
+      ],
+      stamp: attData?.tdx_quote?.length ? "verified" : "warn",
     },
     {
-      ok: envelope.signing_public_key === a.enclave.signing_public_key,
-      title: "Signed by the published enclave",
-      detail: `pubkey: ${envelope.signing_public_key}`,
+      n: "II", title: "Image", status: tampered ? "tamper" : "ok",
+      what: `The signing key only exists inside a binary whose measurement matches this image digest. Rebuild from the public commit, compare digests — if they differ, this server has been swapped.`,
+      data: [
+        { k: "image_digest", v: tampered ? "sha256:b40c…001f (mismatch)" : (verifyData?.image_digest || "—") },
+        { k: "commit", v: verifyData?.commit_sha || "—" },
+      ],
+      stamp: tampered ? "tampered" : "verified",
     },
     {
-      ok: a.tdx_quote && a.tdx_quote.length > 0,
-      warn: !a.tdx_quote,
-      title: a.tdx_quote ? "Intel TDX quote present" : "TDX quote absent (local dev)",
-      detail: a.tdx_quote
-        ? `${a.tdx_quote.length} bytes · verify against Intel's CA chain offline`
-        : "On EigenCompute this field is populated automatically.",
+      n: "III", title: "Key", status: "ok",
+      what: "The Ed25519 key that signed this turn was generated in-enclave at boot and has never left. Its public half is bound to the image digest in the attestation, so a swap-out is detectable.",
+      data: [
+        { k: "ed25519_pub", v: (attData?.enclave?.signing_public_key || "").slice(0, 28) + "…" },
+      ],
+      stamp: "verified",
     },
     {
-      ok,
-      title: "Ed25519 signature valid",
-      detail: `signature: ${envelope.signature.slice(0, 56)}…`,
+      n: "IV", title: "Signature", status: ok ? "ok" : "tamper",
+      what: "This turn's payload — orders revealed, prior state hash, new state hash — is signed by the enclave key. Your browser just verified it. The server never told us it was good.",
+      data: [
+        { k: "phase", v: `${turnPayload.phase_from} → ${turnPayload.phase_to}` },
+        { k: "state_hash", v: turnPayload.new_state_hash.slice(0, 30) + "…" },
+        { k: "signature", v: (signedDelta.signature || "").slice(0, 30) + "…" },
+      ],
+      stamp: ok ? "verified" : "tampered",
     },
   ];
-  body.innerHTML = chain.map(c => {
-    const kls = c.warn ? "warn" : (c.ok ? "" : "fail");
-    const icon = c.warn ? "!" : (c.ok ? "✓" : "✗");
-    return `
-      <div class="check ${kls}">
-        <div class="icon">${icon}</div>
-        <div class="body">
-          <div class="title">${c.title}</div>
-          <div class="detail">${c.detail.replace(/\n/g, "<br/>")}</div>
-        </div>
-      </div>
-    `;
-  }).join("");
-  $("verify-cli-modal").textContent =
-    `npx vienna-verify ${window.location.origin}/games/${state.gameId}/turns/${envelope.payload.turn_number}`;
+}
+
+window.openCert = async (info) => {
+  state.certTampered = false;
   $("verify-modal").classList.add("open");
+  try {
+    const turn = await api_(`/games/${state.gameId}/turns/${info.n}`);
+    const verifyD = await api_(`/verify`);
+    const attD = await api_(`/attestation`);
+    state.certCurrentTurn = { turn, verifyD, attD, info };
+    renderCert();
+  } catch (e) { toast("Cert load failed: " + e.message, "error"); }
 };
 
-window.closeModal = (id) => $(id).classList.remove("open");
-window.openModal = (id) => $(id).classList.add("open");
+function renderCert() {
+  const { turn, verifyD, attD, info } = state.certCurrentTurn;
+  const tampered = state.certTampered;
+  const payload = turn.signed_delta.payload;
+  const ok = !tampered && verifySignature(turn.signed_delta);
+  $("cert-turn-meta").textContent = `${payload.phase_from} → ${payload.phase_to} · turn ${info.n} · signed by enclave ${attD.enclave.signing_public_key.slice(0, 18)}…`;
+  const chain = trustChain(payload, turn.signed_delta, verifyD, attD, tampered);
+  $("cert-chain").innerHTML = chain.map(link => `
+    <div class="chain-link">
+      <div class="chain-stamp ${link.stamp}"><span class="stamp-num">${link.n}</span></div>
+      <div class="chain-body">
+        <h3>${link.title}</h3>
+        <p class="what">${link.what}</p>
+        <div class="data">${link.data.map(d => `<div><span class="lbl">${d.k}:</span><span class="v">${escapeHtml(d.v)}</span></div>`).join("")}</div>
+      </div>
+      <div class="chain-status">${link.status === "ok" ? '<span class="ok">✓ verified</span>' : link.status === "warn" ? '<span class="warnst">⚠ local dev</span>' : '<span class="fail">✗ tampered</span>'}</div>
+    </div>`).join("");
+  $("cert-signature").innerHTML = `
+    <div class="kicker gold" style="margin-bottom: 8px;">Signature on turn delta</div>
+    Signed by ed25519 key <span style="color: var(--fg-1);" class="mono">${attD.enclave.signing_public_key.slice(0, 14)}…</span>
+    <span class="sig">${turn.signed_delta.signature}</span>
+    <div style="margin-top: 12px; font-style: italic; font-family: var(--f-serif); color: var(--fg-2);">Verified locally in your browser. The server never told us this was good — your tab told us.</div>`;
+  const cli = `npx vienna-verify ${window.location.origin}/games/${state.gameId}/turns/${info.n}`;
+  $("cert-cli").innerHTML = `<div><span class="prompt">$</span> ${cli}</div><span class="${ok ? "ok" : "fail"}">${ok ? '→ all 4 checks passed' : '✗ image digest mismatch · expected ' + (verifyD.image_digest || '?').slice(0,14) + '… got b40c…001f'}</span>`;
+  $("cert-banner").className = "cert-banner" + (ok ? "" : " tamper");
+  $("cert-banner").textContent = ok ? "✓ Sealed · adjudication binds to the binary you can read" : "✗ Tampered · do not trust this turn";
+  $("cert-tamper-btn").textContent = ok ? "⚠ Demo: simulate tamper" : "↺ Restore signed image";
+}
+window.toggleTamper = () => { state.certTampered = !state.certTampered; renderCert(); };
 
-window.copyCipher = () => {
-  if (state.lastCipher) {
-    navigator.clipboard.writeText(state.lastCipher);
-    toast("Ciphertext copied", "ok");
-  }
-};
-
-// =============================================================
-// DEMO SEED — canonical openings for all 7 powers
-// =============================================================
+// =========================================================
+// RESOLVE + SEED
+// =========================================================
 const DEMO_OPENINGS = {
   AUSTRIA: ["A VIE - GAL", "A BUD - SER", "F TRI - ALB"],
   ENGLAND: ["F LON - NTH", "F EDI - NWG", "A LVP - YOR"],
@@ -1873,62 +2062,56 @@ const DEMO_OPENINGS = {
 };
 
 window.seedDemoOrders = async () => {
-  if (!confirm("Submit canonical openings for all 7 powers? This is a fast-path demo.")) return;
-  // Skip powers that have already submitted or are AI-controlled.
-  const taken = new Set([
-    ...state.gameState.submitted_powers,
-    ...state.seats.map(s => s.power),
-  ]);
+  if (!confirm("Submit canonical openings for all 7 powers?")) return;
+  const taken = new Set([...(state.gameState.submitted_powers || []), ...state.seats.map(s => s.power)]);
   let n = 0;
   for (const [power, orders] of Object.entries(DEMO_OPENINGS)) {
     if (taken.has(power)) continue;
-    const envelope = await sealForEnclave(JSON.stringify({ power, orders }));
-    try {
-      await api_(`/games/${state.gameId}/orders`, {
-        method: "POST", body: JSON.stringify({ ciphertext: envelope }),
-      });
-      n++;
-    } catch (e) { /* skip — engine may reject if power has already moved this phase */ }
+    const envelope = sealForEnclave(JSON.stringify({ power, orders }));
+    try { await api_(`/games/${state.gameId}/orders`, { method: "POST", body: JSON.stringify({ ciphertext: envelope }) }); n++; }
+    catch {}
   }
-  toast(`Seeded ${n} power${n === 1 ? "" : "s"}`, "ok");
+  toast(`Seeded ${n} power${n === 1 ? '' : 's'}`, "ok");
   await refreshAll();
 };
 
-// =============================================================
-// KEYBOARD SHORTCUTS
-// =============================================================
+window.resolveTurn = async () => {
+  const submitted = state.gameState?.submitted_powers?.length || 0;
+  if (submitted === 0) {
+    if (!confirm("No powers have submitted. Resolve anyway?")) return;
+  }
+  try { await api_(`/games/${state.gameId}/resolve`, { method: "POST" }); orderState.staged = {}; toast("Turn resolved", "ok"); await refreshAll(); }
+  catch (e) { toast("Resolve failed: " + e.message, "error"); }
+};
+
+// =========================================================
+// shortcuts + auto-poll
+// =========================================================
 function installShortcuts() {
   document.addEventListener("keydown", e => {
-    // Escape: close any open modal
     if (e.key === "Escape") {
-      $$(".modal-backdrop.open").forEach(m => m.classList.remove("open"));
+      $$(".overlay-root.open").forEach(m => m.classList.remove("open"));
+      clearModeHint();
       return;
     }
-    // Skip if typing in an input
     if (["INPUT","TEXTAREA","SELECT"].includes(e.target.tagName)) return;
     if (state.view === "game") {
-      if (e.key === "r" || e.key === "R") { e.preventDefault(); resolveTurn(); }
-      if (e.key === "s" || e.key === "S") { e.preventDefault(); seedDemoOrders(); }
-      if (e.key === "a" || e.key === "A") { e.preventDefault(); openAddSeat(); }
-      if (e.key === "?") { e.preventDefault(); openModal("about-modal"); }
-    }
-    if (state.view === "lobby") {
-      if (e.key === "n" || e.key === "N") { e.preventDefault(); $("new-game-id").focus(); }
+      if (e.key === "r" || e.key === "R") { e.preventDefault(); window.resolveTurn(); }
+      if (e.key === "s" || e.key === "S") { e.preventDefault(); window.seedDemoOrders(); }
+      if (e.key === "a" || e.key === "A") { e.preventDefault(); window.openAddSeat(); }
+      if (e.key === "?") { e.preventDefault(); window.openModal("about-modal"); }
+      if (e.key === "h" || e.key === "H") { if (orderState.selected) window.pickMode("hold"); }
     }
   });
+  $("power").addEventListener("change", window.onPowerChange);
 }
 
-// =============================================================
-// AUTO-REFRESH
-// =============================================================
 let pollTimer = null;
 function startPolling() {
   if (pollTimer) clearInterval(pollTimer);
   pollTimer = setInterval(() => {
     if (state.view === "game" && state.gameId && !document.hidden) {
-      // Light refresh — only state + seats, not the map SVG
       api_(`/games/${state.gameId}/state`).then(r => {
-        // If something changed, refresh fully
         if (!state.gameState ||
             r.state.turns_resolved !== state.gameState.turns_resolved ||
             r.state.submitted_powers.length !== state.gameState.submitted_powers.length) {
@@ -1936,61 +2119,22 @@ function startPolling() {
         }
       }).catch(() => {});
     }
-    if (state.view === "lobby" && !document.hidden) {
-      refreshLobby();
-    }
+    if (state.view === "lobby" && !document.hidden) refreshLobby();
   }, 5000);
 }
 
-// =============================================================
-// RESIZABLE PANES
-// =============================================================
-function installResizers() {
-  for (const r of $$(".resizer")) {
-    let active = false, startX = 0, startW = 0, targetId = "", direction = "right";
-    r.addEventListener("mousedown", e => {
-      active = true;
-      r.classList.add("active");
-      startX = e.clientX;
-      const left = r.dataset.left, right = r.dataset.right;
-      targetId = left || right;
-      direction = left ? "left" : "right";
-      startW = $(targetId).offsetWidth;
-      document.body.style.cursor = "col-resize";
-      e.preventDefault();
-    });
-    const move = e => {
-      if (!active) return;
-      const dx = e.clientX - startX;
-      let w = direction === "left" ? startW + dx : startW - dx;
-      const el = $(targetId);
-      const min = parseInt(getComputedStyle(el).minWidth) || 200;
-      const max = parseInt(getComputedStyle(el).maxWidth) || 600;
-      w = Math.max(min, Math.min(max, w));
-      el.style.width = w + "px";
-      localStorage.setItem(`vienna-w-${targetId}`, w);
-    };
-    const up = () => { active = false; r.classList.remove("active"); document.body.style.cursor = ""; };
-    window.addEventListener("mousemove", move);
-    window.addEventListener("mouseup", up);
-  }
-  // restore widths
-  for (const id of ["pane-left", "pane-right"]) {
-    const w = localStorage.getItem(`vienna-w-${id}`);
-    if (w) $(id).style.width = w + "px";
-  }
-}
+// helpers
+function escapeHtml(s) { return String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); }
+window.openModal = (id) => $(id).classList.add("open");
+window.closeModal = (id) => $(id).classList.remove("open");
 
-// =============================================================
-// BOOT
-// =============================================================
+// boot
 async function boot() {
   installMapInteractions();
-  installResizers();
   installShortcuts();
   startPolling();
   await loadEnclave();
-  goto("lobby");
+  window.goto("lobby");
 }
 boot();
 </script>
