@@ -196,6 +196,14 @@
     transition: opacity 0.12s, stroke-width 0.12s;
     pointer-events: stroke;
   }
+  /* Invisible wider sibling path makes the arrow easier to click. */
+  .order-arrow-hit {
+    fill: none;
+    stroke: transparent;
+    stroke-width: 22;
+    cursor: pointer;
+    pointer-events: stroke;
+  }
   .order-arrow:hover { opacity: 1; stroke-width: 9; }
   .order-arrow.staged {
     opacity: 1; stroke-width: 9;
@@ -648,7 +656,7 @@
     <div class="pane-scroll">
       <div class="field">
         <label>You are playing</label>
-        <select id="power" onchange="rebuildOrderForm()"></select>
+        <select id="power" onchange="onPowerChange()"></select>
         <div id="submitted-pills" class="badges" style="margin-top:8px;display:flex;flex-wrap:wrap;gap:4px"></div>
       </div>
 
@@ -1024,8 +1032,10 @@ function populatePowerSelect() {
       sel.add(new Option(p, p));
       seatSel.add(new Option(p, p));
     }
-    sel.value = "FRANCE";
   }
+  // Always default to FRANCE on game load (was: only once, leaving stale value
+  // from prior games / alphabetical first option).
+  if (!state.userPickedPower) sel.value = "FRANCE";
 }
 
 function updatePhaseCard() {
@@ -1082,6 +1092,18 @@ function rebuildOrderForm() {
     if (sel) sel.value = raw;
   }
 }
+
+window.onPowerChange = () => {
+  state.userPickedPower = true;
+  // Switching power invalidates any unit selection
+  orderState.selected = null;
+  orderState.staged = {};
+  if (state.mapSvg) {
+    clearOverlay();
+    clearSelectionClasses();
+  }
+  rebuildOrderForm();
+};
 
 window.onSidePanelOrderChange = (sel) => {
   // Side-panel → map sync
@@ -1355,47 +1377,19 @@ function drawArrowsFor(fromLoc) {
       if (!to) continue;
       targets.add(o.to);
       const lift = (arrowIdx++ % 2 === 0) ? 0.18 : -0.18;
-      const path = svgEl("path", {
-        d: curvedPath(fromCenter, to, lift),
-        class: `order-arrow move ${isStaged(o.raw) ? "staged" : ""}`,
-        "marker-end": "url(#ah-move)",
-        "data-order": o.raw, "data-from": fromLoc,
-      });
-      path.addEventListener("click", e => { e.stopPropagation(); stageOrder(fromLoc, o.raw); });
-      path.addEventListener("mouseover", () => {
-        locElement(o.to)?.classList.add("hovered");
-      });
-      path.addEventListener("mouseout", () => {
-        locElement(o.to)?.classList.remove("hovered");
-      });
-      overlay.appendChild(path);
+      addArrowPair(overlay, curvedPath(fromCenter, to, lift), "move", "ah-move", o.raw, fromLoc,
+        () => locElement(o.to)?.classList.add("hovered"),
+        () => locElement(o.to)?.classList.remove("hovered"));
     }
     else if (o.kind === "support_move") {
-      // Visual: dashed support arrow from supporter to the support DESTINATION
-      // (sup_to), with a small tick at sup_from to mark "the unit I'm
-      // supporting".
       const dest = centerOf(o.sup_to);
       const via = centerOf(o.sup_from);
       if (!dest) continue;
       targets.add(o.sup_to);
       const lift = (arrowIdx++ % 2 === 0) ? 0.22 : -0.22;
-      const path = svgEl("path", {
-        d: curvedPath(fromCenter, dest, lift),
-        class: `order-arrow support ${isStaged(o.raw) ? "staged" : ""}`,
-        "marker-end": "url(#ah-support)",
-        "data-order": o.raw, "data-from": fromLoc,
-      });
-      path.addEventListener("click", e => { e.stopPropagation(); stageOrder(fromLoc, o.raw); });
-      path.addEventListener("mouseover", () => {
-        locElement(o.sup_to)?.classList.add("hovered");
-        locElement(o.sup_from)?.classList.add("hovered");
-      });
-      path.addEventListener("mouseout", () => {
-        locElement(o.sup_to)?.classList.remove("hovered");
-        locElement(o.sup_from)?.classList.remove("hovered");
-      });
-      overlay.appendChild(path);
-      // small tick at sup_from to indicate the supported unit
+      addArrowPair(overlay, curvedPath(fromCenter, dest, lift), "support", "ah-support", o.raw, fromLoc,
+        () => { locElement(o.sup_to)?.classList.add("hovered"); locElement(o.sup_from)?.classList.add("hovered"); },
+        () => { locElement(o.sup_to)?.classList.remove("hovered"); locElement(o.sup_from)?.classList.remove("hovered"); });
       if (via) {
         const tick = svgEl("circle", {
           cx: via[0], cy: via[1], r: 7,
@@ -1406,19 +1400,11 @@ function drawArrowsFor(fromLoc) {
       }
     }
     else if (o.kind === "support_hold") {
-      // Dashed arrow from supporter to the unit being held in place.
       const dest = centerOf(o.sup_target);
       if (!dest) continue;
       targets.add(o.sup_target);
       const lift = (arrowIdx++ % 2 === 0) ? 0.22 : -0.22;
-      const path = svgEl("path", {
-        d: curvedPath(fromCenter, dest, lift),
-        class: `order-arrow support ${isStaged(o.raw) ? "staged" : ""}`,
-        "marker-end": "url(#ah-support)",
-        "data-order": o.raw, "data-from": fromLoc,
-      });
-      path.addEventListener("click", e => { e.stopPropagation(); stageOrder(fromLoc, o.raw); });
-      overlay.appendChild(path);
+      addArrowPair(overlay, curvedPath(fromCenter, dest, lift), "support", "ah-support", o.raw, fromLoc);
       // ring around the held unit
       const heldEl = locElement(o.sup_target);
       if (heldEl) {
@@ -1436,8 +1422,6 @@ function drawArrowsFor(fromLoc) {
       }
     }
     else if (o.kind === "convoy") {
-      // Wavy line from the convoying fleet through the cargo's origin to its
-      // destination. Visually: from fromLoc to conv_to, with a kink at conv_from.
       const cargoFrom = centerOf(o.conv_from);
       const cargoTo = centerOf(o.conv_to);
       if (!cargoTo) continue;
@@ -1445,25 +1429,38 @@ function drawArrowsFor(fromLoc) {
       const d = cargoFrom
         ? `M ${fromCenter[0]} ${fromCenter[1]} Q ${cargoFrom[0]} ${cargoFrom[1]} ${cargoTo[0]} ${cargoTo[1]}`
         : curvedPath(fromCenter, cargoTo, 0.2);
-      const path = svgEl("path", {
-        d, class: `order-arrow convoy ${isStaged(o.raw) ? "staged" : ""}`,
-        "marker-end": "url(#ah-convoy)",
-        "data-order": o.raw, "data-from": fromLoc,
-      });
-      path.addEventListener("click", e => { e.stopPropagation(); stageOrder(fromLoc, o.raw); });
-      path.addEventListener("mouseover", () => {
-        locElement(o.conv_to)?.classList.add("hovered");
-        locElement(o.conv_from)?.classList.add("hovered");
-      });
-      path.addEventListener("mouseout", () => {
-        locElement(o.conv_to)?.classList.remove("hovered");
-        locElement(o.conv_from)?.classList.remove("hovered");
-      });
-      overlay.appendChild(path);
+      addArrowPair(overlay, d, "convoy", "ah-convoy", o.raw, fromLoc,
+        () => { locElement(o.conv_to)?.classList.add("hovered"); locElement(o.conv_from)?.classList.add("hovered"); },
+        () => { locElement(o.conv_to)?.classList.remove("hovered"); locElement(o.conv_from)?.classList.remove("hovered"); });
     }
   }
 
   for (const t of targets) locElement(t)?.classList.add("target");
+}
+
+// Helper: add a wide invisible hit-path + the visible arrow so users
+// can click a fat target without changing the visual.
+function addArrowPair(overlay, d, kindClass, markerId, raw, fromLoc, onOver, onOut) {
+  const isStaged = orderState.staged[fromLoc] === raw;
+  const onClick = e => { e.stopPropagation(); stageOrder(fromLoc, raw); };
+
+  const hit = svgEl("path", {
+    d, class: "order-arrow-hit",
+    "data-order": raw, "data-from": fromLoc,
+  });
+  hit.addEventListener("click", onClick);
+  if (onOver) hit.addEventListener("mouseover", onOver);
+  if (onOut)  hit.addEventListener("mouseout",  onOut);
+
+  const visible = svgEl("path", {
+    d, class: `order-arrow ${kindClass} ${isStaged ? "staged" : ""}`,
+    "marker-end": `url(#${markerId})`,
+    "data-order": raw, "data-from": fromLoc,
+  });
+  visible.addEventListener("click", onClick);
+
+  overlay.appendChild(hit);
+  overlay.appendChild(visible);
 }
 
 function restageVisuals() {
