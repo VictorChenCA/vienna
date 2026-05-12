@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import os
 import uuid
+from decimal import Decimal
 from typing import Any
 
 from fastapi import FastAPI, HTTPException
@@ -27,8 +28,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
 from vienna import __version__
+from vienna.ai_seat import AISeat, Personality
 from vienna.crypto import EnclaveKeys, boot_keys
 from vienna.engine import GameEngine, UnknownGame
+from vienna.payout import winner_attestation
 
 app = FastAPI(
     title="Vienna",
@@ -50,6 +53,12 @@ app.add_middleware(
 ENGINE = GameEngine()
 KEYS: EnclaveKeys = boot_keys()
 
+# game_id -> { POWER -> wallet address }, pinned at game creation.
+ADDRESS_BOOK: dict[str, dict[str, str]] = {}
+
+# game_id -> { POWER -> AISeat }
+AI_SEATS: dict[str, dict[str, AISeat]] = {}
+
 
 # ---------------------------------------------------------------------------
 # Request / response models
@@ -58,6 +67,10 @@ KEYS: EnclaveKeys = boot_keys()
 
 class CreateGameRequest(BaseModel):
     game_id: str | None = Field(default=None, description="Optional override")
+    address_book: dict[str, str] = Field(
+        default_factory=dict,
+        description="POWER -> wallet address. Used for payout at game end.",
+    )
 
 
 class CreateGameResponse(BaseModel):
@@ -78,6 +91,23 @@ class ResolveResponse(BaseModel):
     turn_number: int
     signed_delta: dict
     new_state: dict
+    ai_seat_actions: list[dict] = Field(default_factory=list)
+    winner_attestation: dict | None = None
+
+
+class AddSeatRequest(BaseModel):
+    power: str
+    player_address: str
+    player_signature: str = Field(description="Player sig over personality fingerprint")
+    personality: dict
+    deposit_usdc: str = Field(default="1.00")
+    x402_signature: str = Field(default="0xstub")
+
+
+class AddSeatResponse(BaseModel):
+    seat_id: str
+    personality_fingerprint: str
+    balance_usdc: str
 
 
 class GameStateResponse(BaseModel):
@@ -136,10 +166,36 @@ def create_game(req: CreateGameRequest) -> CreateGameResponse:
         state = ENGINE.create_game(game_id)
     except Exception as exc:
         raise HTTPException(status_code=400, detail=str(exc))
+    ADDRESS_BOOK[game_id] = {k.upper(): v for k, v in req.address_book.items()}
+    AI_SEATS[game_id] = {}
     return CreateGameResponse(
         game_id=game_id,
         enclave=KEYS.identity().to_dict(),
         state=state,
+    )
+
+
+@app.post("/games/{game_id}/ai-seats", response_model=AddSeatResponse)
+def add_ai_seat(game_id: str, req: AddSeatRequest) -> AddSeatResponse:
+    _not_found_if_unknown(game_id)
+    try:
+        personality = Personality(**req.personality)
+    except TypeError as exc:
+        raise HTTPException(status_code=400, detail=f"bad personality: {exc}")
+
+    seat = AISeat(
+        game_id=game_id,
+        power=req.power.upper(),
+        player_address=req.player_address,
+        personality=personality,
+        player_signature=req.player_signature,
+    )
+    seat.ledger.topup(Decimal(req.deposit_usdc), x402_signature=req.x402_signature)
+    AI_SEATS.setdefault(game_id, {})[seat.power] = seat
+    return AddSeatResponse(
+        seat_id=f"{game_id}:{seat.power}",
+        personality_fingerprint=personality.fingerprint(),
+        balance_usdc=str(seat.ledger.balance),
     )
 
 
@@ -179,16 +235,82 @@ def submit_orders(game_id: str, req: SubmitOrdersRequest) -> SubmitOrdersRespons
 @app.post("/games/{game_id}/resolve", response_model=ResolveResponse)
 def resolve(game_id: str) -> ResolveResponse:
     _not_found_if_unknown(game_id)
+
+    # AI seats fill in for any power they hold that hasn't submitted yet.
+    ai_actions = _run_ai_seats(game_id)
+
     try:
         delta = ENGINE.resolve_turn(game_id)
     except Exception as exc:
         raise HTTPException(status_code=400, detail=str(exc))
-    signed = _sign(delta.signing_payload())
+
+    # Fold AI-seat attestation fields into the signed delta so a verifier
+    # can confirm which powers were AI-played and which player signed
+    # off on each AI personality.
+    payload = delta.signing_payload()
+    for seat in AI_SEATS.get(game_id, {}).values():
+        payload.update(seat.attestation_fields())
+    signed = _sign(payload)
+
+    winner_att: dict | None = None
+    if delta.is_done:
+        try:
+            winner_att = winner_attestation(
+                delta, ADDRESS_BOOK.get(game_id, {}), KEYS
+            )
+        except KeyError as exc:
+            # Missing address for a winner — surface but don't fail the resolve.
+            winner_att = {"error": str(exc)}
+
     return ResolveResponse(
         turn_number=delta.turn_number,
         signed_delta=signed,
         new_state=delta.new_state,
+        ai_seat_actions=ai_actions,
+        winner_attestation=winner_att,
     )
+
+
+def _run_ai_seats(game_id: str) -> list[dict]:
+    """For each attached AI seat whose power hasn't submitted, generate
+    orders and stage them via the engine. Returns a per-seat audit log
+    suitable for the demo UI."""
+    seats = AI_SEATS.get(game_id, {})
+    if not seats:
+        return []
+
+    submitted = set(ENGINE.get_pending_powers(game_id))
+    record = ENGINE._record(game_id)  # internal access — keeps deps simple
+    game = record.game
+
+    actions: list[dict] = []
+    for power, seat in seats.items():
+        if power in submitted:
+            continue
+        try:
+            orderable = game.get_orderable_locations(power)
+            possible = {loc: game.get_all_possible_orders().get(loc, []) for loc in orderable}
+            chosen = seat.choose_orders(
+                game_state={
+                    "phase": game.get_current_phase(),
+                    "your_units": list(game.get_units(power)),
+                    "centers": {p: list(game.get_centers(p)) for p in game.powers},
+                },
+                orderable_locations=list(orderable),
+                possible_orders=possible,
+            )
+            ENGINE.submit_orders(game_id, power, chosen)
+            actions.append(
+                {
+                    "power": power,
+                    "orders": chosen,
+                    "personality_fingerprint": seat.personality.fingerprint(),
+                    "remaining_balance_usdc": str(seat.ledger.balance),
+                }
+            )
+        except Exception as exc:
+            actions.append({"power": power, "error": str(exc)})
+    return actions
 
 
 @app.get("/games/{game_id}/state", response_model=GameStateResponse)
