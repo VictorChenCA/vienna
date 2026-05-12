@@ -3,13 +3,22 @@
 The 3-minute demo Vienna is built around. Each beat names the file or
 endpoint it exercises, so you can rehearse off-script.
 
+**Repo:** https://github.com/VictorChenCA/vienna
+
 ## Prep (before going on stage)
 
 ```bash
-# In repo root:
+# Local (always-on backup):
+cd /Users/victor/Documents/GitHub/eigen/vienna
 .venv/bin/uvicorn vienna.server:app --port 8765
 # Browser → http://localhost:8765
 # Second terminal kept open for the verify CLI.
+```
+
+For the live EigenCompute URL (post-deploy):
+```bash
+ecloud compute app list             # see your apps
+ecloud compute app logs vienna -w   # tail the enclave logs on stage
 ```
 
 Keep two terminals visible:
