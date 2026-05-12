@@ -1271,14 +1271,34 @@ function rebuildLegalIndex() {
   }
 }
 
-function provFromTarget(t) {
-  if (!t) return null;
-  const el = t.closest && t.closest('[id^="_"]');
-  if (!el) return null;
-  const id = el.id.slice(1);
-  if (!id || id.length > 7) return null;
-  // _par → "PAR" ; _stp_nc rare (we mostly use canonical "STP/NC" from orders)
-  return id.toUpperCase().replace("_", "/");
+function provFromTarget(t, x, y) {
+  // Robust resolver: a click on the map can land on many things — a
+  // province polygon (#_par), a unit icon (#unit_PAR) which is a sibling
+  // in #UnitLayer not a descendant, a supply-center dot, a label, etc.
+  // Walk the *full* element stack at the cursor and pick the first thing
+  // we can identify.
+  const stack = (x != null && y != null)
+    ? document.elementsFromPoint(x, y)
+    : (t ? [t] : []);
+  for (const el of stack) {
+    if (!el || !el.id) continue;
+    if (el.id.startsWith("unit_") || el.id.startsWith("dislodged_")) {
+      return el.id.replace(/^(unit_|dislodged_)/, "").toUpperCase();
+    }
+    if (el.id.startsWith("_") && el.id.length <= 8) {
+      return el.id.slice(1).toUpperCase().replace("_", "/");
+    }
+  }
+  // Last-resort ancestor walk on the original target (legacy path).
+  if (t) {
+    const unitEl = t.closest && t.closest('[id^="unit_"], [id^="dislodged_"]');
+    if (unitEl) return unitEl.id.replace(/^(unit_|dislodged_)/, "").toUpperCase();
+    const provEl = t.closest && t.closest('[id^="_"]');
+    if (provEl && provEl.id.length <= 8) {
+      return provEl.id.slice(1).toUpperCase().replace("_", "/");
+    }
+  }
+  return null;
 }
 
 // Five sea zones where the diplomacy engine's province code disagrees with
@@ -1470,8 +1490,12 @@ function restageVisuals() {
 }
 
 function onMapClick(e) {
-  const tgt = e.target;
-  const prov = provFromTarget(tgt);
+  // First: did we click on an order arrow? Arrows are inside #vienna-overlay
+  // and have their own listeners with stopPropagation, but if a wider hit
+  // path lay over a polygon, the arrow gets first crack via its listener.
+  // Here we use the *cursor coords* to resolve the underlying province
+  // robustly regardless of stacking order.
+  const prov = provFromTarget(e.target, e.clientX, e.clientY);
   if (!prov) return;
   const power = $("power").value;
   const myUnits = (state.orderable?.orderable_by_power?.[power] || []);
@@ -1495,12 +1519,12 @@ function onMapClick(e) {
 }
 
 function onMapHover(e) {
-  const prov = provFromTarget(e.target);
+  const prov = provFromTarget(e.target, e.clientX, e.clientY);
   if (!prov || prov === orderState.selected) return;
   locElement(prov)?.classList.add("hovered");
 }
 function onMapOut(e) {
-  const prov = provFromTarget(e.target);
+  const prov = provFromTarget(e.target, e.clientX, e.clientY);
   if (!prov) return;
   locElement(prov)?.classList.remove("hovered");
 }
@@ -1556,21 +1580,31 @@ window.mapFit = () => {
 // pan + wheel-zoom — installed once
 function installMapInteractions() {
   const host = $("map-svg-host");
-  let dragging = false, startX = 0, startY = 0, baseX = 0, baseY = 0;
+  let pressing = false, dragging = false, startX = 0, startY = 0, baseX = 0, baseY = 0;
+  const PAN_THRESHOLD = 4;  // pixels of movement before we treat it as a drag
 
   host.addEventListener("mousedown", e => {
-    dragging = true; host.classList.add("dragging", "no-anim");
+    pressing = true; dragging = false;
     startX = e.clientX; startY = e.clientY;
     baseX = state.mapTransform.x; baseY = state.mapTransform.y;
   });
   window.addEventListener("mouseup", () => {
-    dragging = false;
-    host.classList.remove("dragging", "no-anim");
+    pressing = false;
+    if (dragging) {
+      dragging = false;
+      host.classList.remove("dragging", "no-anim");
+    }
   });
   window.addEventListener("mousemove", e => {
-    if (!dragging) return;
-    state.mapTransform.x = baseX + (e.clientX - startX);
-    state.mapTransform.y = baseY + (e.clientY - startY);
+    if (!pressing) return;
+    const dx = e.clientX - startX, dy = e.clientY - startY;
+    if (!dragging && Math.hypot(dx, dy) < PAN_THRESHOLD) return;
+    if (!dragging) {
+      dragging = true;
+      host.classList.add("dragging", "no-anim");
+    }
+    state.mapTransform.x = baseX + dx;
+    state.mapTransform.y = baseY + dy;
     applyMapTransform();
   });
   host.addEventListener("wheel", e => {
