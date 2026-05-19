@@ -1,77 +1,215 @@
 # Vienna
 
-Verifiable Diplomacy on EigenCompute.
+> _Verifiable Diplomacy on EigenCompute._
+> Replace the GM, not the rules.
 
-Vienna replaces the trusted-GM role every online Diplomacy server still requires.
-Player orders are encrypted so even the server operator cannot read them, every
-turn's resolution is signed by a key that lives inside an Intel TDX enclave, and
-the binary running in the enclave is cryptographically linked to this public
-repo. AI seats — backed by Claude — keep games alive when humans drop, with
-personality configs signed by the player who configured them.
+**Live deployment:** http://34.142.204.158:8080
+**Verifiability dashboard:** https://verify-sepolia.eigencloud.xyz/app/0xec6B69887B4fd7280B81AB29a936b99516731F8E
+**App ID:** `0xec6B69887B4fd7280B81AB29a936b99516731F8E` · sepolia · verifiable build of this repo at commit `b77b04d`
 
-## Why this needs EigenCompute
+Vienna is a multiplayer Diplomacy server that runs inside an Intel TDX
+hardware enclave. Player orders are sealed in the browser so the operator
+cannot read them, every turn's adjudication is signed by a key bound to the
+running binary, and the running binary is cryptographically linked to this
+public commit. AI seats — backed by Claude — keep games alive when humans
+drop, with personality configs signed by the player who set them.
 
-Run on AWS or Vercel, every trust property collapses:
+---
+
+## The trust problem
+
+Diplomacy is the only major board game whose **rules** require a trusted
+third party. Seven players write secret orders, a GM holds and reveals them
+simultaneously, then runs a complex deterministic adjudicator with edge
+cases human GMs have historically gotten wrong (paradox resolution, convoy
+disruption, support cuts). Without that adjudicator, the game cannot be
+played at all.
+
+Every online Diplomacy server today — webdiplomacy.net, Backstabbr,
+PlayDiplomacy — solves this by asking you to trust the company hosting it.
+Rebuild on AWS or Vercel and every trust property collapses:
 
 - The operator can read everyone's secret orders.
-- The operator can fudge adjudication.
-- AI seats are opaque — no one can verify they ran the personality the player set.
+- The operator can fudge adjudication and rewrite turn history.
+- AI seats are opaque — no one can verify they ran the personality the
+  player set.
 - Post-game disputes have no resolution path.
 
-EigenCompute gives us:
+Vienna moves the GM from "the company hosting the server" to **"Intel's
+CPU attestation chain + a published commit you can read."**
 
-| Property                  | What it buys us                                                 |
-| ------------------------- | --------------------------------------------------------------- |
-| Source code verifiability | Players rebuild from this repo and check the image digest.       |
-| Attestations              | Every turn delta is signed by an enclave-bound key.              |
-| Encrypted memory          | Orders are sealed-box encrypted to the enclave's public key.     |
-| Agent commerce            | AI seats pay their own inference via x402/MPP (`dual402`).       |
-| Programmatic payouts      | Game-end signed attestation triggers an on-chain escrow release. |
+---
 
-## Architecture (one screen)
+## Architecture
 
-```
-Browser  -- HTTPS -->  Enclave (Intel TDX on EigenCompute)
-   |                       |
-   |                       +-- vienna/server.py     FastAPI surface
-   |                       +-- vienna/engine.py     diplomacy.Game wrapper
-   |                       +-- vienna/crypto.py     sealed-box + Ed25519
-   |                       +-- vienna/ai_seat.py    Claude + dual402
-   |                       +-- vienna/payout.py     game-end attestation
-   |
-   +-- npx vienna-verify <url> -- TDX quote + image digest + signature check
-```
+![Vienna architecture](./docs/architecture.svg)
 
-## Engine: wrap, don't fork
+Three zones, top to bottom:
 
-Vienna depends on [`diplomacy`](https://pypi.org/project/diplomacy/) (the
-`diplomacy/diplomacy` reference implementation used by Meta's CICERO research)
-as a pinned pip dependency. We do **not** fork the engine. The attestation
-surface is the small FastAPI server we wrote — DATC-compliant adjudication is
-inherited verbatim.
+1. **Browser.** Orders are written in a webdiplomacy-style click flow (click
+   unit → mode picker → click destination), sealed to the enclave's
+   Curve25519 envelope key using libsodium's sealed-box, and submitted over
+   HTTPS. Plain orders never leave the device. The same browser later
+   verifies every signed turn delta locally — no server round-trip required
+   to check trust.
 
-## Verifying a game locally
+2. **Intel TDX enclave on EigenCompute.** A FastAPI surface, the canonical
+   `diplomacy/diplomacy` adjudicator (wrapped as a pip dependency, not
+   forked), an Ed25519 signing key generated in-enclave at first boot,
+   and an AI-seat module that calls Claude. The signing key never leaves
+   the enclave; its public half is bound to the binary's measurement via
+   the TDX attestation quote.
+
+3. **Public, verifiable.** The image digest is reproducible from the
+   GitHub commit via EigenCompute's verifiable build sandbox. The
+   `vienna-verify` CLI walks the trust chain locally — image digest,
+   enclave pubkey, Ed25519 signature — and exits 0 on pass, 1 on tamper.
+   Winner attestations from the enclave can be submitted to an on-chain
+   escrow contract that pays the pot without any admin in the loop.
+
+---
+
+## How EigenCompute features map to Vienna
+
+| Feature                   | Vienna implementation                                                                                                                                                                |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Source verifiability**  | Verifiable build from `github.com/VictorChenCA/vienna` produces a content-addressed image digest published in `/verify`. A reader can rebuild and compare.                           |
+| **Attestations**          | Every `/games/:id/turns/:n` returns a turn delta Ed25519-signed by the enclave key. The pubkey is bound to the image measurement at `/attestation`.                                  |
+| **Encrypted memory**      | Orders are sealed to a Curve25519 envelope key whose private half lives only inside the enclave. The plaintext is decrypted in attested TDX memory at the phase deadline.            |
+| **Agent commerce**        | AI cabinet seats pay their own per-turn Claude inference from a USDC deposit, debited via the x402 / MPP `dual402` pattern. Out of budget = seat suspended.                          |
+| **Programmatic payouts**  | Game-end winner attestation is signed by the enclave and consumed by an on-chain escrow contract on sepolia. The contract recovers the pubkey, checks the image digest, releases.    |
+
+---
+
+## Verify it yourself
+
+This is the rubric beat made into docs. You should be able to re-derive
+Vienna's trust claim from scratch in five minutes.
+
+### 1. Match the live binary to this commit
 
 ```bash
-# 1. Compare the published source to the running image
 git clone https://github.com/VictorChenCA/vienna && cd vienna
-git checkout <commit-sha-from-/verify>
+git checkout $(curl -s http://34.142.204.158:8080/verify | jq -r .commit_sha)
 docker build --build-arg GIT_COMMIT=$(git rev-parse HEAD) -t vienna:local .
-docker inspect --format='{{.Id}}' vienna:local
-# compare to:
-curl https://<your-deployment>/verify
-
-# 2. Check the per-turn signature
-curl https://<your-deployment>/games/<id>/turns/4 | jq
-# verify signature against the enclave pubkey returned at /attestation
 ```
+
+Compare the resulting image digest to:
+
+```bash
+curl -s http://34.142.204.158:8080/verify | jq .image_digest
+```
+
+(On EigenCompute the verifiable-build sandbox produces a stable digest
+published on the dashboard; locally-built images will match only when the
+build environment is reproducible.)
+
+### 2. Check a turn signature in the browser
+
+Open the live URL. Create a game, hit **Demo seed**, hit **Resolve →**.
+Click the timeline cell that appeared at the bottom. The
+**Certificate of Adjudication** modal pops up with four numbered wax
+stamps. The third and fourth (`Key` and `Signature`) are verified by your
+browser, not by the server — that's the in-browser Ed25519 check running
+on the signed delta the server returned.
+
+### 3. Check from a clean terminal
+
+```bash
+node verify_cli/index.js http://34.142.204.158:8080/games/<your-game-id>/turns/1
+```
+
+Should print four green checks and exit 0. To see the kill moment: edit
+one line in `verify_cli/index.js` to flip the expected signing key, re-run,
+get a red ✗ and a non-zero exit. (Or just hit the `⚠ Demo: simulate
+tamper` button in the certificate modal — same effect.)
+
+---
+
+## Inside the repo
+
+```
+vienna/
+├── vienna/                    # the attested server (Python, FastAPI)
+│   ├── server.py              # FastAPI surface; the entire API
+│   ├── engine.py              # diplomacy.Game wrapper + signed TurnDelta
+│   ├── crypto.py              # sealed-box decryption + Ed25519 signing
+│   ├── ai_seat.py             # Claude-backed seats with x402 ledger
+│   ├── payout.py              # game-end winner attestation
+│   └── static/index.html      # single-file UI, vanilla JS, no build step
+├── verify_cli/                # the npm-ready local verifier
+│   ├── index.js               # `vienna-verify <url>` (Node 18+)
+│   └── package.json
+├── tests/                     # 24 backend tests, all green
+├── Dockerfile                 # python:3.11-slim + pinned deps
+├── DEMO.md                    # 6-beat 3-min demo script
+└── docs/
+    └── architecture.svg       # the diagram above
+```
+
+### Wrap, don't fork
+
+Vienna depends on [`diplomacy`](https://pypi.org/project/diplomacy/) — the
+reference DATC-compliant adjudicator Meta's CICERO research used — as a
+pinned pip dependency. We do **not** modify the engine. The attestation
+surface is the small FastAPI server you can audit in `vienna/server.py`.
+Adjudication correctness is inherited verbatim.
+
+---
+
+## Built with
+
+- **Backend** — Python 3.11, FastAPI, [`diplomacy/diplomacy`](https://github.com/diplomacy/diplomacy) 1.1.2, PyNaCl (sealed-box + Ed25519), Anthropic Python SDK
+- **Frontend** — vanilla JS, single-file HTML, no build step, [`tweetnacl-js`](https://www.npmjs.com/package/tweetnacl) for in-browser sig verification
+- **Engine** — Intel TDX via EigenCompute (`g1-standard-2s`)
+- **Deploy** — `ecloud compute app deploy --verifiable` against GitHub source
+- **Verifier CLI** — Node 18+, zero build deps
+- **Design system** — Newsreader italic display, Source Serif 4 body, Inter Tight UI, JetBrains Mono; warm-ink + parchment + gold palette
+
+---
+
+## Roadmap
+
+Hit-list of things deferred for the Private Preview demo cut. Issues
+tracked in the repo:
+
+- **Real TDX quote in `/attestation`.** Server currently reads
+  `VIENNA_TDX_QUOTE` from env; needs to read the host's quote sidecar
+  (sysfs path / unix socket) and surface it directly.
+- **Press / chat phase.** Diplomacy negotiation runs out-of-band today.
+  Putting press inside the same encryption envelope is the natural v2.
+- **Mainnet deployment.** Currently on sepolia (wallet had no mainnet ETH
+  for gas). The trust chain is identical on either chain; only the escrow
+  contract address changes.
+- **On-chain escrow contract.** Vienna produces signed winner attestations
+  but the contract that consumes them is stubbed. ~50 lines of Solidity.
+- **AI seat real Claude path.** `VIENNA_CLAUDE_LIVE=1` is wired but the
+  Private Preview gateway 401 made me default to a deterministic stub.
+  Re-enable once the gateway settles.
+- **Custom domain + TLS.** Currently on raw IP:8080. EigenCompute supports
+  custom domains via the Caddy sidecar — left out of the demo cut.
+
+---
 
 ## Status
 
-Prototype built during the EigenCloud Private Preview (April–May 2026). Not
-audited. Not for production funds.
+Built during the EigenCloud Private Preview, April – May 2026.
+Not audited. Not for production funds.
+
+The interesting bits — encrypted-orders + signed turns + in-browser
+verification + the certificate UX — work end-to-end on the live URL above.
 
 ## License
 
 AGPL-3.0, inherited from upstream `diplomacy/diplomacy`. Network-accessible
 deployments must publish their source under the same terms.
+
+## Acknowledgements
+
+- The `diplomacy/diplomacy` maintainers and the CICERO research team for
+  the engine.
+- The EigenCloud Private Preview team — especially Matt Murray and
+  Mustafa — for the credits, the office hours, and the example repos.
+- Wisdom and Megabyte from the preview cohort for the
+  gateway-401 debugging thread that saved me an hour.
+- Built with [Claude](https://claude.ai/code).
